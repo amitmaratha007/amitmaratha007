@@ -351,6 +351,9 @@ a { color: var(--accent); text-decoration: none; }
 
 /* tag filter chip with colour dot (reuses .subpill) */
 .subpill .tdot { width: 9px; height: 9px; border-radius: 50%; }
+/* inline per-tab delete button shown next to a workspace tab when Edit is on */
+.subpill.tag-del { padding: 4px 7px; margin-left: -4px; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); font-weight: 700; line-height: 1; }
+.subpill.tag-del:hover { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
 
 /* back-to-team pill */
 .pill.back { background: var(--field); color: var(--text); border: 1px solid var(--field-brd); }

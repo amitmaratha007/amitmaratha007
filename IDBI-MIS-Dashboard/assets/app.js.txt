@@ -352,6 +352,8 @@
   }
 
   function render() {
+    // Rebuild the search index on every render so newly added/edited links, contacts & items are immediately findable.
+    if ((UI.q || "").trim()) { srRes = buildSearch(UI.q); if (!$("#searchResults").classList.contains("hidden")) renderSearch(); }
     applyTheme(); renderNav(); renderSidebarStats(); renderNextHoliday(); renderAccess();
     const ownerEl = $("#ownerName"); if (ownerEl) ownerEl.textContent = workspaceOwnerId() ? workspaceOwnerName() : "Guest";
     const personal = UI.mode === "personal";
@@ -446,9 +448,16 @@
   const canOwnWorkItem = (w) => !viewAs && currentUserId && (!w || w.assignee === currentUserId);
   const canEditWorkItem = (w) => !viewAs && ((teamEdit && canEdit(w && w.assignee)) || canOwnWorkItem(w));
   const canAddWorkItem = () => !viewAs && ((teamEdit && canEdit()) || !!currentUserId);
+  // Workspace tabs (Circle GL, ASP+DSP …) are shared team-wide. Superadmin can always add/delete for everyone.
+  const canManageTags = () => !viewAs && (isSuper || canAddWorkItem());
   function viewPendency() {
     const items0 = vItems();
-    const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All</button>` + (TEAM.workTags || []).map((t) => `<button class="subpill ${UI.tTag === t.id ? "active" : ""}" data-action="ttag" data-v="${t.id}"><span class="tdot" style="background:${t.color}"></span>${esc(t.name)}</button>`).join("");
+    const canTags = canManageTags();
+    const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All</button>` + (TEAM.workTags || []).map((t) => {
+      const sel = UI.tTag === t.id ? "active" : "";
+      const del = canTags && teamEdit ? `<button class="subpill tag-del" data-action="del-tag" data-id="${t.id}" title="Delete the “${esc(t.name)}” tab">✕</button>` : "";
+      return `<button class="subpill ${sel}" data-action="ttag" data-v="${t.id}"><span class="tdot" style="background:${t.color}"></span>${esc(t.name)}</button>${del}`;
+    }).join("") + (canTags && teamEdit ? `<button class="subpill" data-action="manage-tags" title="Add or edit workspace tabs">＋ Tab</button>` : "");
     const q = (UI.q || "").trim().toLowerCase(); let items = items0.slice();
     if (UI.tTag !== "all") items = items.filter((w) => w.tag === UI.tTag);
     if (UI.tStatus === "open") items = items.filter((w) => w.status !== "completed");
@@ -462,7 +471,7 @@
       return `<div class="tr row" style="grid-template-columns:2.4fr 1.1fr 1fr 1.1fr .9fr 78px"><div class="cell-title"><b>${esc(w.title)}</b><div class="ref">${t ? `<span class="badge" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">${esc(t.name)}</span>` : ""}</div></div><div class="small">${a ? esc(a.name) : "—"}</div><div><div class="small">${fmtDate(w.due)}</div><span class="cd ${cd.cls}">${cd.label}</span></div><div><span class="badge ${stc}">${stl}</span></div><div><span class="prio ${w.priority || "low"}">${(w.priority || "low").toUpperCase()}</span></div><div class="cell-actions"><button class="icon-btn sq" data-action="view-wi" data-id="${w.id}" title="Details">↗</button>${ed ? `<button class="icon-btn sq" data-action="edit-wi" data-id="${w.id}">✎</button><button class="icon-btn sq" data-action="del-wi" data-id="${w.id}">🗑</button>` : ""}</div></div>`;
     }).join("");
     const list = items.length ? `<div class="tbl">${head}${rows}</div>` : `<div class="empty glass"><div class="e-ico">🗂️</div><p>No items match your filters.</p></div>`;
-    return `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canAddWorkItem() ? `<button class="btn btn-ghost btn-sm" data-action="manage-tags" title="Add, rename or delete the workspace tags">⚙ Tags</button><button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
+    return `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canTags ? `<button class="btn btn-ghost btn-sm" data-action="manage-tags" title="Add, rename or delete the workspace tabs (Circle GL, ASP+DSP …)">⚙ Edit tabs</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
       <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div class="subnav" style="padding:0">${chips}</div></div>
       <div class="toolbar" style="display:flex;gap:8px;margin-bottom:14px"><select class="select" data-action="tstatus">${["all", "open", "pending", "in-progress", "completed", "overdue"].map((s) => `<option value="${s}" ${UI.tStatus === s ? "selected" : ""}>${s === "all" ? "All statuses" : (s === "open" ? "Open (all pending)" : (s === "overdue" ? "Overdue" : ST_LABEL[s]))}</option>`).join("")}</select><select class="select" data-action="tsort"><option value="due" ${UI.tSort === "due" ? "selected" : ""}>Sort: Due date</option><option value="priority" ${UI.tSort === "priority" ? "selected" : ""}>Sort: Priority</option></select></div>${list}`;
   }
@@ -548,7 +557,7 @@
   }
   function viewVendors() {
     const q = (UI.q || "").trim().toLowerCase();
-    const filt = (rows) => { rows = (rows || []).slice(); return q ? rows.filter((v) => [v.name, v.org, v.role, v.area, v.email, v.notes].some((x) => (x || "").toLowerCase().includes(q))) : rows; };
+    const filt = (rows) => { rows = (rows || []).slice(); return q ? rows.filter((v) => [v.name, v.org, v.role, v.area, v.email, v.phone, v.notes].some((x) => (x || "").toLowerCase().includes(q))) : rows; };
     const shared = filt(TEAM.vendors), mine = mineReady() ? filt(PD.vendors) : [];
     const section = (label, sub, rows, scope) => `<div class="section-head link-section-head"><h2>${label}</h2><span class="faint">${sub} · ${rows.length} contact${rows.length === 1 ? "" : "s"}</span><span class="spacer"></span>${!viewAs && (scope === "shared" || mineReady()) ? `<button class="btn" data-action="add-vendor" data-scope="${scope}">＋ Add contact</button>` : ""}</div><div class="people-grid list-section">${vendorCards(rows, scope)}</div>`;
     return section("Shared — team", "Visible to everyone", shared, "shared") + (mineReady() ? section("Mine — " + esc(workspaceOwnerName()), "Private workspace list", mine, "mine") : `<div class="banner warn">A personal contacts list appears once this PC is mapped to your name in ⚙ Settings.</div>`);
@@ -720,29 +729,29 @@
     openModal(id ? "Edit work item" : "Add work item", `<div class="field"><label>Title</label><input id="f-title" value="${esc(w.title)}"></div><div class="row2"><div class="field"><label>Work tag</label><select id="f-tag">${tagOpts}</select></div><div class="field"><label>Assignee</label><select id="f-assignee">${aOpts}</select></div></div><div class="row2"><div class="field"><label>Status</label><select id="f-status">${STATUS.map((s) => `<option value="${s}" ${s === w.status ? "selected" : ""}>${ST_LABEL[s]}</option>`).join("")}</select></div><div class="field"><label>Priority</label><select id="f-prio">${["high", "medium", "low"].map((s) => `<option value="${s}" ${s === w.priority ? "selected" : ""}>${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div></div><div class="field"><label>Due date</label><input id="f-due" type="date" value="${esc(w.due || "")}"></div><div class="field"><label>Notes</label><textarea id="f-notes">${esc(w.notes || "")}</textarea></div>`,
       () => { const title = $("#f-title").value.trim(); if (!title) { toast("Title required", "err"); return false; } const o = { id: w.id || uid("w"), title, tag: $("#f-tag").value, assignee: ownOnly ? currentUserId : $("#f-assignee").value, status: $("#f-status").value, priority: $("#f-prio").value, due: $("#f-due").value, notes: $("#f-notes").value.trim() }; if (id) TEAM.workItems[TEAM.workItems.findIndex((x) => x.id === id)] = o; else TEAM.workItems.push(o); render(); saveTeam(); return true; });
   }
+  function wtRowHtml(name, color) {
+    const c = /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : PALETTE[0];
+    return `<div class="wt-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input class="wt-name" value="${esc(name || "")}" placeholder="Tab name (e.g. Circle GL)" style="flex:1"><input class="wt-color" type="color" value="${esc(c)}" title="Tab colour" style="width:44px;flex:0 0 auto;padding:2px;height:34px"><button class="btn btn-danger btn-sm" data-action="wt-del-row" title="Delete this tab">✕</button></div>`;
+  }
   function manageWorkTags() {
     if (viewAs) { toast("Exit view-as to make changes", "err"); return; }
-    if (!canAddWorkItem()) { toast("Ask admin to map this PC before managing tags", "err"); return; }
+    if (!canManageTags()) { toast("Ask admin to map this PC (or log in as Superadmin) before managing tabs", "err"); return; }
     const old = TEAM.workTags || [];
-    const lineOf = (t) => t.name + (t.color ? " | " + t.color : "");
-    openModal("Manage My Workspace tags", `<div class="field"><label>One tag per line. Optionally add <b>| #colour</b> after the name (e.g. <code>GST Litigation Tool | #f59e0b</code>).</label><textarea id="wt-lines" style="min-height:190px;font-family:ui-monospace,monospace">${esc(old.map(lineOf).join("\n"))}</textarea></div><p class="faint small">Renaming keeps existing items attached by position. Deleting a tag hides its chip — items already using it keep their stored tag value until you add it back or re-tag them. Tags are shared with the whole team.</p>`,
+    const rowsHtml = (old.length ? old : [{ name: "", color: PALETTE[0] }]).map((t, i) => wtRowHtml(t.name, t.color || PALETTE[i % PALETTE.length])).join("");
+    openModal("Manage My Workspace tabs", `<p class="faint small" style="margin:0 0 10px">Add, rename, recolour or delete the workspace tabs (Circle GL, ASP+DSP …). These are <b>shared with the whole team</b>${isSuper ? " — as Superadmin your changes apply for everyone" : ""}. Deleting a tab hides its chip; items already using it keep their stored tab until you re-tag them.</p><div id="wt-rows">${rowsHtml}</div><button class="btn btn-ghost btn-sm" data-action="wt-add-row" style="margin-top:4px">＋ Add tab</button>`,
       () => {
-        const lines = $("#wt-lines").value.split("\n").map((s) => s.trim()).filter(Boolean);
-        if (!lines.length) { toast("Add at least one tag", "err"); return false; }
+        const byName = {}; old.forEach((t) => { if (!(t.name in byName)) byName[t.name] = t.id; });
+        const entries = $$("#wt-rows .wt-row").map((r) => ({ name: ($(".wt-name", r).value || "").trim(), color: $(".wt-color", r).value || PALETTE[0] })).filter((e) => e.name);
+        if (!entries.length) { toast("Add at least one tab", "err"); return false; }
         const used = new Set();
-        TEAM.workTags = lines.map((line, i) => {
-          const parts = line.split("|");
-          const name = parts[0].trim();
-          let color = (parts[1] || "").trim();
-          if (color && color[0] !== "#") color = "#" + color;
-          if (!/^#[0-9a-fA-F]{3,8}$/.test(color)) color = (old[i] && old[i].color) || PALETTE[i % PALETTE.length];
-          let id = (old[i] && old[i].id) || slug(name);
-          while (used.has(id)) id = slug(name) + "-" + (i + used.size);
+        TEAM.workTags = entries.map((e, i) => {
+          let id = byName[e.name] || slug(e.name);
+          while (used.has(id)) id = slug(e.name) + "-" + (i + used.size);
           used.add(id);
-          return { id, name, color };
+          return { id, name: e.name, color: e.color };
         });
         if (UI.tTag !== "all" && !tag(UI.tTag)) UI.tTag = "all";
-        render(); saveTeam(); toast("Tags saved", "ok"); return true;
+        render(); saveTeam(); toast("Tabs saved", "ok"); return true;
       });
   }
   function editPerson(id) {
@@ -817,7 +826,7 @@
       const links = (TEAM.links || []).map((l) => ({ x: l, src: "Shared" })).concat(mineReady() ? (PD.links || []).map((l) => ({ x: l, src: "Mine" })) : []);
       links.filter((o) => [o.x.title, o.x.url, o.x.desc, o.x.category].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((o) => out.push({ kind: "link", m: o.x.title, s: "Link · " + (o.x.category ? o.x.category + " · " : "") + o.src, go: () => { UI.mode = "team"; UI.teamTab = "links"; } }));
       const vendors = (TEAM.vendors || []).map((v) => ({ x: v, src: "Shared" })).concat(mineReady() ? (PD.vendors || []).map((v) => ({ x: v, src: "Mine" })) : []);
-      vendors.filter((o) => [o.x.name, o.x.org, o.x.role, o.x.area, o.x.email, o.x.notes].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((o) => out.push({ kind: "vendor", m: o.x.name, s: "Tech contact" + (o.x.org ? " · " + o.x.org : "") + " · " + o.src, go: () => { UI.mode = "team"; UI.teamTab = "vendors"; } }));
+      vendors.filter((o) => [o.x.name, o.x.org, o.x.role, o.x.area, o.x.email, o.x.phone, o.x.notes].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((o) => out.push({ kind: "vendor", m: o.x.name, s: "Tech contact" + (o.x.org ? " · " + o.x.org : "") + " · " + o.src, go: () => { UI.mode = "team"; UI.teamTab = "vendors"; } }));
     }
     return out;
   }
@@ -923,6 +932,9 @@
       "add-wi": () => { if (canAddWorkItem()) editWorkItem(null, !teamEdit); else toast("Ask admin to map this PC before adding work", "err"); }, "edit-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w)) editWorkItem(id, !teamEdit); else toast("You don't have edit rights for this item", "err"); }, "del-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w) && confirm("Delete this item?")) { TEAM.workItems = TEAM.workItems.filter((x) => x.id !== id); render(); saveTeam(); } },
       "add-person": () => guardTeam() && editPerson(null), "edit-person": () => { if (viewAs) { toast("Exit view-as to make changes", "err"); return; } if (id && id === workspaceOwnerId()) { editPerson(id); return; } if (guardTeam() && canEdit(id)) editPerson(id); }, "del-person": () => { if (guardTeam() && canEdit(id) && confirm("Remove this person?")) { TEAM.people = TEAM.people.filter((x) => x.id !== id); render(); saveTeam(); } },
       "manage-tags": () => manageWorkTags(),
+      "del-tag": () => { if (!canManageTags()) { toast("You can't manage tabs here", "err"); return; } const t = tag(id); if (t && confirm(`Delete the “${t.name}” tab for everyone? Items using it keep their stored tab until re-tagged.`)) { TEAM.workTags = (TEAM.workTags || []).filter((x) => x.id !== id); if (UI.tTag === id) UI.tTag = "all"; render(); saveTeam(); toast("Tab deleted"); } },
+      "wt-add-row": () => { const box = $("#wt-rows"); if (box) { box.insertAdjacentHTML("beforeend", wtRowHtml("", PALETTE[$$("#wt-rows .wt-row").length % PALETTE.length])); const last = box.querySelector(".wt-row:last-child .wt-name"); if (last) last.focus(); } },
+      "wt-del-row": () => { const row = el.closest(".wt-row"); if (row) row.remove(); },
       "export-wi": exportWiCsv, "copy": () => copyText(el.dataset.copy),
       "login-super": loginSuper, "logout-super": logoutSuper, "settings": openSettings,
       "sr-go": () => srGo(srRes[+el.dataset.i]),
