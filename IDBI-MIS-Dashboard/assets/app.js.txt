@@ -485,7 +485,9 @@
       return `<div class="tr row" style="grid-template-columns:2.4fr 1.1fr 1fr 1.1fr .9fr 78px"><div class="cell-title"><b>${esc(w.title)}</b><div class="ref">${t ? `<span class="badge" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">${esc(t.name)}</span>` : ""}</div></div><div class="small">${a ? esc(a.name) : "—"}</div><div><div class="small">${fmtDate(w.due)}</div><span class="cd ${cd.cls}">${cd.label}</span></div><div><span class="badge ${stc}">${stl}</span></div><div><span class="prio ${w.priority || "low"}">${(w.priority || "low").toUpperCase()}</span></div><div class="cell-actions"><button class="icon-btn sq" data-action="view-wi" data-id="${w.id}" title="Details">↗</button>${ed ? `<button class="icon-btn sq" data-action="edit-wi" data-id="${w.id}">✎</button><button class="icon-btn sq" data-action="del-wi" data-id="${w.id}">🗑</button>` : ""}</div></div>`;
     }).join("");
     const list = items.length ? `<div class="tbl">${head}${rows}</div>` : `<div class="empty glass"><div class="e-ico">🗂️</div><p>No items match your filters.</p></div>`;
-    return `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canTags ? `<button class="btn btn-ghost btn-sm" data-action="manage-tags" title="Add, rename or delete the workspace tabs (Circle GL, ASP+DSP …)">⚙ Edit tabs</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
+    const dummyCount = (TEAM.workItems || []).filter(isDummyItem).length;
+    const canClear = !viewAs && (isSuper || (teamEdit && canEdit()));
+    return `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canClear && dummyCount ? `<button class="btn btn-ghost btn-sm" data-action="clear-dummies" title="Remove all dummy items added to fill the dashboard">🧹 Clear dummy (${dummyCount})</button>` : ""}${canTags ? `<button class="btn btn-ghost btn-sm" data-action="manage-tags" title="Add, rename or delete the workspace tabs (Circle GL, ASP+DSP …)">⚙ Edit tabs</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
       <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div class="subnav" style="padding:0">${chips}</div></div>
       <div class="toolbar" style="display:flex;gap:8px;margin-bottom:14px"><select class="select" data-action="tstatus">${["all", "open", "pending", "in-progress", "completed", "overdue"].map((s) => `<option value="${s}" ${UI.tStatus === s ? "selected" : ""}>${s === "all" ? "All statuses" : (s === "open" ? "Open (all pending)" : (s === "overdue" ? "Overdue" : ST_LABEL[s]))}</option>`).join("")}</select><select class="select" data-action="tsort"><option value="due" ${UI.tSort === "due" ? "selected" : ""}>Sort: Due date</option><option value="priority" ${UI.tSort === "priority" ? "selected" : ""}>Sort: Priority</option></select></div>${list}`;
   }
@@ -747,6 +749,16 @@
     const c = /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : PALETTE[0];
     return `<div class="wt-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input class="wt-name" value="${esc(name || "")}" placeholder="Tab name (e.g. Circle GL)" style="flex:1"><input class="wt-color" type="color" value="${esc(c)}" title="Tab colour" style="width:44px;flex:0 0 auto;padding:2px;height:34px"><button class="btn btn-danger btn-sm" data-action="wt-del-row" title="Delete this tab">✕</button></div>`;
   }
+  const isDummyItem = (w) => (w && ((w.id || "").indexOf("dum-") === 0 || /\(dummy\)/i.test(w.title || "")));
+  function clearDummyItems() {
+    if (viewAs) { toast("Exit view-as to make changes", "err"); return; }
+    if (!(isSuper || (teamEdit && canEdit()))) { toast("Turn on “✎ Edit” (or log in as Superadmin) to clear dummy items", "err"); return; }
+    const dummies = (TEAM.workItems || []).filter(isDummyItem);
+    if (!dummies.length) { toast("No dummy items to clear", "ok"); return; }
+    if (!confirm("Remove all " + dummies.length + " dummy item" + (dummies.length === 1 ? "" : "s") + " for everyone? Your real items are kept.")) return;
+    TEAM.workItems = (TEAM.workItems || []).filter((w) => !isDummyItem(w));
+    render(); saveTeam(); toast("Removed " + dummies.length + " dummy item" + (dummies.length === 1 ? "" : "s"), "ok");
+  }
   function manageWorkTags() {
     if (viewAs) { toast("Exit view-as to make changes", "err"); return; }
     if (!canManageTags()) { toast("Ask admin to map this PC (or log in as Superadmin) before managing tabs", "err"); return; }
@@ -967,7 +979,7 @@
       "ttag": () => { UI.tTag = el.dataset.v; saveUI(); render(); }, "drole": () => { UI.dRole = el.dataset.v; saveUI(); render(); },
       "add-wi": () => { if (canAddWorkItem()) editWorkItem(null, !teamEdit); else toast("Ask admin to map this PC before adding work", "err"); }, "edit-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w)) editWorkItem(id, !teamEdit); else toast("You don't have edit rights for this item", "err"); }, "del-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w) && confirm("Delete this item?")) { TEAM.workItems = TEAM.workItems.filter((x) => x.id !== id); render(); saveTeam(); } },
       "add-person": () => guardTeam() && editPerson(null), "edit-person": () => { if (viewAs) { toast("Exit view-as to make changes", "err"); return; } if (id && id === workspaceOwnerId()) { editPerson(id); return; } if (guardTeam() && canEdit(id)) editPerson(id); }, "del-person": () => { if (guardTeam() && canEdit(id) && confirm("Remove this person?")) { TEAM.people = TEAM.people.filter((x) => x.id !== id); render(); saveTeam(); } },
-      "manage-tags": () => manageWorkTags(),
+      "manage-tags": () => manageWorkTags(), "clear-dummies": clearDummyItems,
       "del-tag": () => { if (!canManageTags()) { toast("You can't manage tabs here", "err"); return; } const t = tag(id); if (t && confirm(`Delete the “${t.name}” tab for everyone? Items using it keep their stored tab until re-tagged.`)) { TEAM.workTags = (TEAM.workTags || []).filter((x) => x.id !== id); if (UI.tTag === id) UI.tTag = "all"; render(); saveTeam(); toast("Tab deleted"); } },
       "wt-add-row": () => { const box = $("#wt-rows"); if (box) { box.insertAdjacentHTML("beforeend", wtRowHtml("", PALETTE[$$("#wt-rows .wt-row").length % PALETTE.length])); const last = box.querySelector(".wt-row:last-child .wt-name"); if (last) last.focus(); } },
       "wt-del-row": () => { const row = el.closest(".wt-row"); if (row) row.remove(); },
