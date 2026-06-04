@@ -487,6 +487,276 @@
       "priority": "medium",
       "due": "",
       "notes": "Under development"
+    },
+    {
+      "id": "dum-01",
+      "title": "Oracle GL — month-end reconciliation review (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-narayan",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-05-28",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-02",
+      "title": "FINSYNC — NABARD API connectivity check (dummy)",
+      "tag": "finsync",
+      "assignee": "p-narayan",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "2026-06-06",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-03",
+      "title": "SARAL GST — vendor coordination call (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-narayan",
+      "status": "completed",
+      "priority": "low",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-04",
+      "title": "FINSYNC — UAT test case execution (dummy)",
+      "tag": "finsync",
+      "assignee": "p-surya",
+      "status": "in-progress",
+      "priority": "low",
+      "due": "2026-06-02",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-05",
+      "title": "ASP-GSP — encryption deployment follow-up (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-surya",
+      "status": "completed",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-06",
+      "title": "GST Litigation — document upload (dummy)",
+      "tag": "gst-litigation",
+      "assignee": "p-surya",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-07-01",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-07",
+      "title": "SARAL GST — GSTR-1 filing reconciliation (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-ankit",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-08",
+      "title": "GST Litigation — patch deployment sign-off (dummy)",
+      "tag": "gst-litigation",
+      "assignee": "p-ankit",
+      "status": "pending",
+      "priority": "low",
+      "due": "2026-06-20",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-09",
+      "title": "Interest — delta query review (dummy)",
+      "tag": "interest-ie",
+      "assignee": "p-ankit",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-10",
+      "title": "GST Litigation — case status update (dummy)",
+      "tag": "gst-litigation",
+      "assignee": "p-vivek",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-06-12",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-11",
+      "title": "Interest Income — TB vs system data match (dummy)",
+      "tag": "interest-ie",
+      "assignee": "p-vivek",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "2026-07-01",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-12",
+      "title": "Stationary — new indent processing (dummy)",
+      "tag": "stationary",
+      "assignee": "p-vivek",
+      "status": "completed",
+      "priority": "low",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-13",
+      "title": "Interest Expenses — OFSAA mapping check (dummy)",
+      "tag": "interest-ie",
+      "assignee": "p-anupam",
+      "status": "in-progress",
+      "priority": "low",
+      "due": "2026-06-20",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-14",
+      "title": "Stationary — delivery follow-up (dummy)",
+      "tag": "stationary",
+      "assignee": "p-anupam",
+      "status": "completed",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-15",
+      "title": "PMP — status tracker update (dummy)",
+      "tag": "pmps",
+      "assignee": "p-anupam",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-06-02",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-16",
+      "title": "Stationary — bill verification (dummy)",
+      "tag": "stationary",
+      "assignee": "p-govind",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-17",
+      "title": "PMP — model validation support (dummy)",
+      "tag": "pmps",
+      "assignee": "p-govind",
+      "status": "pending",
+      "priority": "low",
+      "due": "2026-05-28",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-18",
+      "title": "Misc — audit query response (dummy)",
+      "tag": "misc",
+      "assignee": "p-govind",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "2026-06-06",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-19",
+      "title": "PMP — data extraction coordination (dummy)",
+      "tag": "pmps",
+      "assignee": "p-manish",
+      "status": "pending",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-20",
+      "title": "Misc — meeting minutes circulation (dummy)",
+      "tag": "misc",
+      "assignee": "p-manish",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "2026-06-02",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-21",
+      "title": "Oracle GL — patch validation in UAT (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-manish",
+      "status": "completed",
+      "priority": "low",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-22",
+      "title": "Misc — weekly MIS report compilation (dummy)",
+      "tag": "misc",
+      "assignee": "p-shivesh",
+      "status": "in-progress",
+      "priority": "low",
+      "due": "2026-05-28",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-23",
+      "title": "Oracle GL — user access recertification (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-shivesh",
+      "status": "completed",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-24",
+      "title": "FINSYNC — DMZ server health review (dummy)",
+      "tag": "finsync",
+      "assignee": "p-shivesh",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-06-20",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-25",
+      "title": "Oracle GL — month-end reconciliation review (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-bhanu",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-26",
+      "title": "FINSYNC — NABARD API connectivity check (dummy)",
+      "tag": "finsync",
+      "assignee": "p-bhanu",
+      "status": "pending",
+      "priority": "low",
+      "due": "2026-06-12",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-27",
+      "title": "SARAL GST — vendor coordination call (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-bhanu",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "2026-07-01",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
     }
   ],
   "links": [],
