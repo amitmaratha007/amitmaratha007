@@ -258,6 +258,7 @@
     UI.calMonth = UI.calMonth || todayISO().slice(0, 7); UI.theme = UI.theme || "idbi-light"; UI.accent = UI.accent || THEME_ACCENT["idbi-light"]; UI.q = "";
     UI.tTag = UI.tTag || "all"; UI.tStatus = UI.tStatus || "all"; UI.tSort = UI.tSort || "due"; UI.dRole = UI.dRole || "all"; UI.dRep = UI.dRep || "all";
     UI.orgFocus = UI.orgFocus || null; UI.sidebarHidden = !!UI.sidebarHidden;
+    UI.clockCollapsed = !!UI.clockCollapsed; UI.calCollapsed = !!UI.calCollapsed;
   }
   const saveUI = () => localStorage.setItem(UI_KEY, JSON.stringify(UI));
   function setSaved(s) { const el = $("#savedInd"); if (!el) return; el.className = "saved " + (s === "saving" ? "saving" : (s === "err" ? "err" : "saved-ok")); el.querySelector("span:last-child").textContent = s === "saving" ? "Saving…" : (s === "err" ? "Save failed" : "Saved"); }
@@ -308,6 +309,12 @@
   function applyTheme() { document.documentElement.setAttribute("data-theme", UI.theme); document.documentElement.style.setProperty("--accent", UI.accent); const sel = $("#themeSel"); if (sel) sel.value = UI.theme; $$(".sw").forEach((s) => s.classList.toggle("active", s.dataset.c === UI.accent)); }
   function applySidebar() { const app = $(".app"); if (app) app.classList.toggle("sidebar-collapsed", !!UI.sidebarHidden); const b = $("#sidebarToggle"); if (b) { b.classList.toggle("active", !UI.sidebarHidden); b.title = UI.sidebarHidden ? "Show the clock & calendar sidebar" : "Hide the clock & calendar sidebar"; } }
   function toggleSidebar() { UI.sidebarHidden = !UI.sidebarHidden; saveUI(); applySidebar(); }
+  function applyPanels() {
+    const cw = $("#clockWrap"); if (cw) cw.classList.toggle("collapsed", !!UI.clockCollapsed);
+    const cv = $("#calWrap"); if (cv) cv.classList.toggle("collapsed", !!UI.calCollapsed);
+    const ct = $('[data-action="toggle-clock"]'); if (ct) { ct.classList.toggle("rot", !!UI.clockCollapsed); ct.title = UI.clockCollapsed ? "Expand the clock" : "Collapse the clock"; }
+    const cl = $('[data-action="toggle-cal"]'); if (cl) { cl.classList.toggle("rot", !!UI.calCollapsed); cl.title = UI.calCollapsed ? "Expand the calendar" : "Collapse the calendar"; }
+  }
 
   /* ===================================================================
      RENDER SHELL
@@ -938,6 +945,8 @@
       ptab: () => { UI.pTab = el.dataset.tab; saveUI(); render(); $("#content").scrollTop = 0; },
       sub: () => { UI.subtab = el.dataset.sub; saveUI(); render(); },
       "back-team": backToTeam, "open-workspace": openWorkspace,
+      "toggle-clock": () => { UI.clockCollapsed = !UI.clockCollapsed; saveUI(); applyPanels(); },
+      "toggle-cal": () => { UI.calCollapsed = !UI.calCollapsed; saveUI(); applyPanels(); },
       "cal-day": () => { const h = window.HOLIDAY_BY_DATE[el.dataset.iso]; if (h) toast("🎉 " + h.name + " · " + fmtDate(el.dataset.iso)); },
       kpi: () => { const k = el.dataset.k; UI.mode = "team"; UI.teamTab = "pendency"; UI.tTag = "all"; UI.tStatus = (k === "week" ? "all" : k); if (k === "week") UI.tSort = "due"; saveUI(); render(); $("#content").scrollTop = 0; },
       "view-wi": () => viewWorkItem(id),
@@ -988,7 +997,7 @@
   /* ============================ BOOT ============================ */
   async function boot() {
     loadUI(); isSuper = localStorage.getItem(SUPER_KEY) === "1"; // first-time users default to the "My Workspace" view (loadUI); returning users keep their last view
-    applyTheme(); applySidebar(); buildClock(); renderCalendar();
+    applyTheme(); applySidebar(); buildClock(); renderCalendar(); applyPanels();
     bind();
     await loadTeam();
     try { MY_IP = (await (await fetch("./api/whoami", { cache: "no-store" })).json()).ip; } catch (e) { MY_IP = null; }

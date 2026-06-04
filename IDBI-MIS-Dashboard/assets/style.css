@@ -99,7 +99,14 @@ a { color: var(--accent); text-decoration: none; }
 .brand .b-txt p { margin: 2px 0 0; font-size: 11.5px; color: var(--muted); }
 
 /* analog clock */
-.clock-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.clock-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; }
+/* per-panel collapse toggles for the clock & calendar */
+.panel-collapse { position: absolute; top: 0; right: 0; width: 24px; height: 24px; border-radius: 7px; border: 1px solid var(--field-brd); background: var(--field); color: var(--muted); cursor: pointer; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; transition: transform .18s ease, color .15s; z-index: 2; }
+.panel-collapse:hover { color: var(--text); }
+.panel-collapse.rot, .cal-nav .icon-btn.rot { transform: rotate(-90deg); }
+.clock-wrap.collapsed .clock { display: none; }
+#calWrap.collapsed .cal-grid { display: none; }
+#calWrap.collapsed .cal-head { margin-bottom: 0; }
 .clock { width: 188px; height: 188px; filter: drop-shadow(0 10px 22px rgba(0,0,0,.35)); }
 .clock .face { fill: var(--glass-2); stroke: var(--brd); stroke-width: 1.5; }
 .clock .tick { stroke: var(--muted); opacity: .55; }

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IDBI MIS — Work Command Center</title>
-  <link rel="stylesheet" href="assets/style.css?v=18" />
+  <link rel="stylesheet" href="assets/style.css?v=19" />
   <link rel="icon" type="image/png" href="assets/idbi-logo.png" />
 </head>
 <body>
@@ -17,16 +17,18 @@
       </div>
 
       <!-- analog clock -->
-      <div class="clock-wrap">
+      <div class="clock-wrap" id="clockWrap">
+        <button class="panel-collapse" data-action="toggle-clock" title="Collapse / expand the clock" aria-label="Collapse clock">▾</button>
         <svg class="clock" id="clock" viewBox="0 0 200 200"></svg>
         <div class="digi"><div class="t" id="digiT">--:--:--</div><div class="d" id="digiD"></div></div>
       </div>
 
       <!-- calendar -->
-      <div>
+      <div id="calWrap">
         <div class="cal-head">
           <div class="m" id="calLabel">—</div>
           <div class="cal-nav">
+            <button class="icon-btn sq" data-action="toggle-cal" title="Collapse / expand the calendar" aria-label="Collapse calendar">▾</button>
             <button class="icon-btn sq" id="calPrev" title="Previous">‹</button>
             <button class="icon-btn sq" id="calToday" title="Today">•</button>
             <button class="icon-btn sq" id="calNext" title="Next">›</button>
@@ -95,7 +97,7 @@
   <div id="toast" class="toast glass hidden"></div>
   <input type="file" id="importFile" accept="application/json" class="hidden" />
 
-  <script src="assets/holidays.js?v=18"></script>
-  <script src="assets/app.js?v=18"></script>
+  <script src="assets/holidays.js?v=19"></script>
+  <script src="assets/app.js?v=19"></script>
 </body>
 </html>
