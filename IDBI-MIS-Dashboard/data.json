@@ -1,0 +1,523 @@
+{
+  "meta": {
+    "org": "IDBI BANK",
+    "department": "MIS Department",
+    "title": "Work Command Center",
+    "subtitle": "Management Information System  |  Corporate Centre, Mumbai",
+    "updated": "2026-06-02",
+    "editPin": "1234"
+  },
+  "access": {
+    "enabled": true,
+    "superadminPassword": "1234",
+    "viewAllReadOnly": false,
+    "announcement": "",
+    "backupPaths": {
+      "local": "",
+      "shared": ""
+    },
+    "autoSync": false,
+    "nodePath": "",
+    "ipMap": {
+      "127.0.0.1": "p-amit",
+      "10.123.210.37": "p-amit"
+    }
+  },
+  "workTags": [
+    {
+      "id": "circle-gl",
+      "name": "Circle GL",
+      "color": "#3b82f6"
+    },
+    {
+      "id": "asp-dsp-gst",
+      "name": "ASP+DSP (GST)",
+      "color": "#22c55e"
+    },
+    {
+      "id": "gst-litigation",
+      "name": "GST Litigation Tool",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "cfsi-a",
+      "name": "CFSI.A",
+      "color": "#a855f7"
+    },
+    {
+      "id": "misc",
+      "name": "Miscellaneous Work",
+      "color": "#64748b"
+    },
+    {
+      "id": "demand-pmp",
+      "name": "Demand & PMP",
+      "color": "#ef4444"
+    },
+    {
+      "id": "interest",
+      "name": "Interest Discount & Approval",
+      "color": "#14b8a6"
+    }
+  ],
+  "people": [
+    {
+      "id": "p-narayan",
+      "name": "Narayan R Kodiyal",
+      "salutation": "Shri",
+      "roleLevel": "DGM",
+      "role": "Deputy General Manager, MIS",
+      "email": "narayan.kodiyal@idbi.co.in",
+      "mobile": "",
+      "pax": "",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": null
+    },
+    {
+      "id": "p-surya",
+      "name": "Surya Bihari",
+      "salutation": "Shri",
+      "roleLevel": "AGM",
+      "role": "Asst. General Manager, MIS",
+      "email": "surya.bihari@idbi.co.in",
+      "mobile": "8693052227",
+      "pax": "",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-narayan"
+    },
+    {
+      "id": "p-ankit",
+      "name": "Ankit Agarwal",
+      "salutation": "Shri",
+      "roleLevel": "AGM",
+      "role": "Asst. General Manager, MIS",
+      "email": "agarwal.ankit@idbi.co.in",
+      "mobile": "9580570705",
+      "pax": "022-66553300",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-narayan"
+    },
+    {
+      "id": "p-amit",
+      "name": "Amit Dethe",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "amit.dethe@idbi.co.in",
+      "mobile": "8788994856",
+      "pax": "022-66908448",
+      "location": "Belapur, Navi Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-vivek",
+      "name": "Vivek Kumar Singh",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "vivekkumar.s@idbi.co.in",
+      "mobile": "8097723303",
+      "pax": "022-66700243",
+      "location": "Corporate Center Tower, Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-anupam",
+      "name": "Anupam K. Herenz",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "anupam.herenz@idbi.co.in",
+      "mobile": "7415560785",
+      "pax": "022-66552733",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-govind",
+      "name": "Govind K. Gaurav",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "govind.gaurav@idbi.co.in",
+      "mobile": "9709134745",
+      "pax": "022-66194138",
+      "location": "Belapur, Navi Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-manish",
+      "name": "Manish Agrawal",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "manish.a@idbi.co.in",
+      "mobile": "7665005473",
+      "pax": "022-66553137",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-ankit"
+    },
+    {
+      "id": "p-shivesh",
+      "name": "Shivesh Kumar",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "shivesh.kumar@idbi.co.in",
+      "mobile": "9927554638",
+      "pax": "022-66553025",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-ankit"
+    },
+    {
+      "id": "p-bhanu",
+      "name": "Bhanupriya Prakashan",
+      "salutation": "Smt.",
+      "roleLevel": "AM",
+      "role": "Assistant Manager, MIS",
+      "email": "bhanupriya.prakashan@idbi.co.in",
+      "mobile": "8891011915",
+      "pax": "",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-ankit"
+    }
+  ],
+  "workItems": [
+    {
+      "id": "w1",
+      "title": "CFSI.A reconciliation pending",
+      "tag": "cfsi-a",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-06-10",
+      "notes": "Pending / not completed. Sample item — edit me."
+    },
+    {
+      "id": "w2",
+      "title": "Interest recovery — open case",
+      "tag": "interest",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-06-15",
+      "notes": "Interest open / recovery in progress."
+    },
+    {
+      "id": "w3",
+      "title": "Service Prepper task",
+      "tag": "misc",
+      "assignee": "p-vivek",
+      "status": "in-progress",
+      "priority": "low",
+      "due": "2026-06-20",
+      "notes": ""
+    },
+    {
+      "id": "w4",
+      "title": "GST Litigation Tool — case update",
+      "tag": "gst-litigation",
+      "assignee": "p-manish",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-06-12",
+      "notes": ""
+    },
+    {
+      "id": "w5",
+      "title": "Circle GL computation",
+      "tag": "circle-gl",
+      "assignee": "p-govind",
+      "status": "completed",
+      "priority": "low",
+      "due": "2026-05-30",
+      "notes": "Computed and verified."
+    },
+    {
+      "id": "w6",
+      "title": "ASP+DSP GST filing",
+      "tag": "asp-dsp-gst",
+      "assignee": "p-shivesh",
+      "status": "completed",
+      "priority": "high",
+      "due": "2026-06-08",
+      "notes": "Partial / not completed."
+    }
+  ],
+  "links": [],
+  "vendors": [
+    {
+      "id": "v1",
+      "name": "Vendor Lead (sample)",
+      "org": "Deloitte",
+      "role": "GST Litigation Tool — Lead",
+      "email": "lead@deloitte.example",
+      "phone": "",
+      "area": "GST Litigation Tool",
+      "notes": "Primary support contact. Edit/replace me."
+    },
+    {
+      "id": "v2",
+      "name": "Support Desk (sample)",
+      "org": "TCS",
+      "role": "L1 Support",
+      "email": "support@vendor.example",
+      "phone": "1800-000-000",
+      "area": "Oracle GL",
+      "notes": ""
+    }
+  ],
+  "workspaces": {
+    "p-amit": {
+      "meta": {
+        "owner": "Amit Dethe",
+        "version": 5,
+        "role": "Manager, MIS",
+        "theme": "dark",
+        "accent": "#bf5af2",
+        "updated": "2026-06-02T16:47:56.328Z"
+      },
+      "projects": [
+        {
+          "id": "oracle-gl",
+          "name": "Oracle GL",
+          "icon": "🗄️",
+          "color": "#0a84ff"
+        },
+        {
+          "id": "asp-gsp",
+          "name": "ASP-GSP (GST)",
+          "icon": "🧾",
+          "color": "#30d158"
+        },
+        {
+          "id": "gst-lit",
+          "name": "GST Litigation Tool",
+          "icon": "⚖️",
+          "color": "#ff9f0a"
+        },
+        {
+          "id": "misc",
+          "name": "Miscellaneous Work",
+          "icon": "🗂️",
+          "color": "#bf5af2"
+        }
+      ],
+      "reqTypes": [
+        {
+          "id": "firewall-crf",
+          "name": "Firewall CRF"
+        },
+        {
+          "id": "ismart",
+          "name": "i-Smart Request"
+        },
+        {
+          "id": "service",
+          "name": "Service Request"
+        },
+        {
+          "id": "change",
+          "name": "Change Request"
+        }
+      ],
+      "requests": [
+        {
+          "id": "r1",
+          "project": "oracle-gl",
+          "type": "firewall-crf",
+          "ref": "CRF-2026-0142",
+          "title": "Open port 1521 for GL DB server",
+          "raised": "2026-05-20",
+          "deadline": "2026-06-05",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "Surya Bihari",
+          "notes": "Awaiting IS-Security approval. (sample — edit/delete me)"
+        },
+        {
+          "id": "r2",
+          "project": "asp-gsp",
+          "type": "ismart",
+          "ref": "ISR-88231",
+          "title": "New GSTR-1 report access",
+          "raised": "2026-05-28",
+          "deadline": "2026-06-10",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "Ankit Agarwal",
+          "notes": ""
+        },
+        {
+          "id": "r3",
+          "project": "gst-lit",
+          "type": "service",
+          "ref": "SR-55012",
+          "title": "Litigation module data correction",
+          "raised": "2026-05-15",
+          "deadline": "2026-05-30",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "Vendor",
+          "notes": "Vendor SLA breached."
+        },
+        {
+          "id": "r4",
+          "project": "oracle-gl",
+          "type": "change",
+          "ref": "CHG-2026-0091",
+          "title": "GL account mapping change FY26",
+          "raised": "2026-04-30",
+          "deadline": "2026-05-25",
+          "status": "completed",
+          "completedOn": "2026-05-22",
+          "owner": "Amit Dethe",
+          "approver": "Surya Bihari",
+          "notes": "Closed."
+        },
+        {
+          "id": "r5",
+          "project": "misc",
+          "type": "service",
+          "ref": "SR-55109",
+          "title": "Printer mapping — Belapur office",
+          "raised": "2026-06-01",
+          "deadline": "",
+          "status": "raised",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        }
+      ],
+      "trackedProjects": [
+        {
+          "id": "tp1",
+          "name": "Oracle GL Upgrade (R12 → Cloud)",
+          "status": "UAT",
+          "uat": "2026-06-15",
+          "goLive": "2026-07-01",
+          "owner": "Amit Dethe",
+          "progress": 65,
+          "notes": "UAT cycle 2 in progress. (sample)"
+        },
+        {
+          "id": "tp2",
+          "name": "GST Litigation Tool v2",
+          "status": "Development",
+          "uat": "2026-07-20",
+          "goLive": "2026-08-10",
+          "owner": "Amit Dethe",
+          "progress": 40,
+          "notes": ""
+        },
+        {
+          "id": "tp3",
+          "name": "ASP-GSP Auto-Reconciliation",
+          "status": "Go-Live",
+          "uat": "2026-05-25",
+          "goLive": "2026-06-08",
+          "owner": "Amit Dethe",
+          "progress": 90,
+          "notes": "Go-live prep."
+        }
+      ],
+      "tasks": [
+        {
+          "id": "t1",
+          "title": "Follow up Firewall CRF-0142",
+          "project": "oracle-gl",
+          "priority": "high",
+          "due": "2026-06-04",
+          "done": false
+        },
+        {
+          "id": "t2",
+          "title": "Prepare UAT sign-off document",
+          "project": "gst-lit",
+          "priority": "medium",
+          "due": "2026-06-12",
+          "done": false
+        },
+        {
+          "id": "t3",
+          "title": "Monthly GST reconciliation",
+          "project": "asp-gsp",
+          "priority": "low",
+          "due": "2026-06-30",
+          "done": false
+        }
+      ],
+      "trackers": [
+        {
+          "id": "returns",
+          "name": "Regulatory Returns",
+          "icon": "📑",
+          "columns": [
+            {
+              "id": "name",
+              "label": "Return name",
+              "type": "text"
+            },
+            {
+              "id": "subcat",
+              "label": "Sub-category",
+              "type": "text"
+            },
+            {
+              "id": "due",
+              "label": "Due date",
+              "type": "date"
+            },
+            {
+              "id": "desc",
+              "label": "Description",
+              "type": "text"
+            },
+            {
+              "id": "status",
+              "label": "Current status",
+              "type": "select",
+              "options": [
+                "Pending",
+                "In Progress",
+                "Filed",
+                "Overdue"
+              ]
+            },
+            {
+              "id": "filed",
+              "label": "Return date",
+              "type": "date"
+            }
+          ],
+          "rows": [
+            {
+              "id": "rr1",
+              "values": {
+                "name": "GSTR-3B (May 2026)",
+                "subcat": "GST",
+                "due": "2026-06-20",
+                "desc": "Monthly summary return",
+                "status": "Pending",
+                "filed": ""
+              }
+            },
+            {
+              "id": "rr2",
+              "values": {
+                "name": "GSTR-1 (May 2026)",
+                "subcat": "GST",
+                "due": "2026-06-11",
+                "desc": "Outward supplies",
+                "status": "In Progress",
+                "filed": ""
+              }
+            }
+          ]
+        }
+      ],
+      "links": [],
+      "vendors": []
+    }
+  }
+}

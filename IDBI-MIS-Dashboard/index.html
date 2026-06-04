@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IDBI MIS — Work Command Center</title>
+  <link rel="stylesheet" href="assets/style.css?v=17" />
+  <link rel="icon" type="image/png" href="assets/idbi-logo.png" />
+</head>
+<body>
+  <div class="app">
+    <!-- ===================== SIDEBAR ===================== -->
+    <aside class="sidebar glass">
+      <div class="brand">
+        <img class="logo" src="assets/idbi-logo.png" alt="IDBI Bank" />
+        <div class="b-txt"><h1>Work Command Center</h1><p>IDBI BANK · MIS · <span id="ownerName">Loading</span></p></div>
+      </div>
+
+      <!-- analog clock -->
+      <div class="clock-wrap">
+        <svg class="clock" id="clock" viewBox="0 0 200 200"></svg>
+        <div class="digi"><div class="t" id="digiT">--:--:--</div><div class="d" id="digiD"></div></div>
+      </div>
+
+      <!-- calendar -->
+      <div>
+        <div class="cal-head">
+          <div class="m" id="calLabel">—</div>
+          <div class="cal-nav">
+            <button class="icon-btn sq" id="calPrev" title="Previous">‹</button>
+            <button class="icon-btn sq" id="calToday" title="Today">•</button>
+            <button class="icon-btn sq" id="calNext" title="Next">›</button>
+          </div>
+        </div>
+        <div class="cal-grid" id="calBody"></div>
+      </div>
+
+      <div class="next-hol" id="nextHol"></div>
+
+      <!-- footer: stats + theme + accent + backup -->
+      <div class="side-foot">
+        <div class="side-stat" id="sideStats"></div>
+
+        <select class="select" id="themeSel" data-action="theme-sel" style="width:100%">
+          <option value="dark">🌙 Dark</option>
+          <option value="light">☀︎ Light</option>
+          <option value="idbi-dark">🟢 IDBI · Dark</option>
+          <option value="idbi-light">🟩 IDBI · Light</option>
+          <option value="genz">🌸 Pink</option>
+        </select>
+        <div class="swatches" style="margin-top:8px;justify-content:center">
+          <span class="sw" data-action="accent" data-c="#0a84ff" style="background:#0a84ff"></span>
+          <span class="sw" data-action="accent" data-c="#30d158" style="background:#30d158"></span>
+          <span class="sw" data-action="accent" data-c="#00a85a" style="background:#00a85a"></span>
+          <span class="sw" data-action="accent" data-c="#f47920" style="background:#f47920"></span>
+          <span class="sw" data-action="accent" data-c="#bf5af2" style="background:#bf5af2"></span>
+          <span class="sw" data-action="accent" data-c="#ff4fa3" style="background:#ff4fa3"></span>
+        </div>
+
+        <div style="display:flex;gap:7px">
+          <button class="btn btn-ghost btn-sm" data-action="export-json" style="flex:1" title="Download a backup file">⬇ Backup</button>
+          <button class="btn btn-ghost btn-sm" data-action="import-json" style="flex:1" title="Restore from a backup file">⬆ Restore</button>
+          <button class="btn btn-ghost btn-sm" data-action="backup-disk" title="Save a copy to disk (server)">💾</button>
+        </div>
+        <div id="accessBox" style="margin-top:2px"></div>
+      </div>
+    </aside>
+
+    <!-- ===================== MAIN ===================== -->
+    <main class="main">
+      <div class="topbar glass">
+        <div><div class="tb-title" id="tbTitle">Overview</div><div class="tb-sub" id="tbSub"></div></div>
+        <div class="search-wrap">
+          <span class="si-ico">🔍</span>
+          <input id="globalSearch" type="search" placeholder="Search requests, projects, tasks…" autocomplete="off" spellcheck="false" />
+          <kbd class="search-kbd">Ctrl K</kbd>
+        </div>
+        <button class="btn btn-ghost hidden" id="editTeamBtn">✎ Edit team</button>
+        <button class="btn" id="addBtn">＋ Add</button>
+        <div class="saved" id="savedInd"><span class="dot"></span><span>Saved</span></div>
+      </div>
+
+      <nav class="nav glass" id="nav"></nav>
+      <div class="subnav hidden" id="subnav"></div>
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <!-- ===================== OVERLAYS ===================== -->
+  <div id="searchResults" class="search-results hidden"></div>
+  <div id="welcome" class="welcome hidden"></div>
+  <div id="modal" class="modal hidden"><div class="modal-card glass" id="modalCard"></div></div>
+  <div id="toast" class="toast glass hidden"></div>
+  <input type="file" id="importFile" accept="application/json" class="hidden" />
+
+  <script src="assets/holidays.js?v=17"></script>
+  <script src="assets/app.js?v=17"></script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+@echo off
+setlocal enableextensions enabledelayedexpansion
+title IDBI MIS - Work Command Center
+cd /d "%~dp0"
+set "PORT=8080"
+
+cls
+echo(
+echo   ============================================================
+echo            IDBI BANK  -  MIS Work Command Center
+echo                  ( runs 100%% offline )
+echo   ============================================================
+echo(
+
+rem --- find this PC's LAN IP address (via PowerShell) ---
+set "IP="
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -ne '127.0.0.1' -and $_.IPAddress -notlike '169.254.*'} | Select-Object -First 1 -ExpandProperty IPAddress)"`) do set "IP=%%i"
+if not defined IP set "IP=localhost"
+
+rem --- pick a runtime: portable Node -> system Node -> Python ---
+set "RUNTIME="
+set "NODE_EXE="
+
+rem 1) node-path.txt  (full path to node.exe OR the folder that contains it)
+if exist "%~dp0node-path.txt" (
+  set /p NP=<"%~dp0node-path.txt"
+  if defined NP (
+    if exist "!NP!\node.exe" ( set "NODE_EXE=!NP!\node.exe" ) else ( if exist "!NP!" set "NODE_EXE=!NP!" )
+  )
+)
+rem 2) portable Node extracted into a "node" folder next to this file
+if not defined NODE_EXE if exist "%~dp0node\node.exe" set "NODE_EXE=%~dp0node\node.exe"
+rem 3) Node installed on the system
+if not defined NODE_EXE ( where node >nul 2>nul && set "NODE_EXE=node" )
+
+if defined NODE_EXE set "RUNTIME=node"
+if not defined RUNTIME ( where python >nul 2>nul && set "RUNTIME=python" )
+if not defined RUNTIME ( where py >nul 2>nul && set "RUNTIME=py" )
+
+if not defined RUNTIME (
+  echo   ERROR: Node.js was not found.
+  echo   - Extract portable Node into a folder named "node" next to this file, OR
+  echo   - put the full path to node.exe ^(or its folder^) in "node-path.txt", OR
+  echo   - install Node.js / Python on this PC.
+  echo   Then run this file again.
+  echo(
+  pause
+  goto :eof
+)
+
+rem --- locate Chrome so we can open in Chrome specifically ---
+set "CHROME="
+for %%p in (
+  "%ProgramFiles%\Google\Chrome\Application\chrome.exe"
+  "%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"
+  "%LocalAppData%\Google\Chrome\Application\chrome.exe"
+) do if exist "%%~p" set "CHROME=%%~p"
+
+echo   Runtime detected : %RUNTIME%
+if defined NODE_EXE echo   Node            : %NODE_EXE%
+echo(
+echo   Open the dashboard here:
+echo(
+echo      On THIS computer :  http://localhost:%PORT%
+echo      On the NETWORK   :  http://%IP%:%PORT%
+echo(
+echo   IMPORTANT: your saved data is stored in the browser, so always
+echo   open the dashboard the SAME way (this PC, this link) to see it.
+echo   Use the in-app Backup / Restore buttons to move data between PCs.
+echo(
+echo   Keep this window OPEN while you use the dashboard.
+echo   If Windows asks about the firewall, click "Allow access".
+echo   Press Ctrl+C or close this window to stop.
+echo   ============================================================
+echo(
+
+rem --- open in Chrome if found, else the default browser ---
+if defined CHROME (
+  start "" "%CHROME%" "http://localhost:%PORT%"
+) else (
+  start "" "http://localhost:%PORT%"
+)
+
+rem --- launch the chosen server (runs in this window) ---
+if /i "%RUNTIME%"=="node" (
+  "%NODE_EXE%" "%~dp0server.js" %PORT%
+) else (
+  %RUNTIME% "%~dp0server.py" %PORT%
+)
+
+echo(
+echo   Server stopped.
+pause

@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""
+IDBI MIS - Work Command Center  |  offline LAN web server (Python stdlib, zero deps).
+- Serves the dashboard (works 100% offline, no internet needed).
+- POST /api/backup  -> saves a timestamped copy of your data into ./backups/
+  (your live data lives in the browser's localStorage; this is an extra safety net.)
+
+Usage:  python server.py [port]      (default 8080)
+"""
+import sys, os, json, datetime, threading
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+ROOT = os.path.dirname(os.path.abspath(__file__))
+BACKUPS = os.path.join(ROOT, "backups")
+DATA_FILE = os.path.join(ROOT, "data.json")
+DATA_LOCK = threading.Lock()  # serialize read-modify-write on data.json (threaded server)
+
+
+def read_data():
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:                                             # noqa: BLE001
+        return {}
+
+
+def write_data(data):
+    tmp = os.path.join(ROOT, "data.json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, DATA_FILE)
+
+
+class Handler(SimpleHTTPRequestHandler):
+    def __init__(self, *a, **kw):
+        super().__init__(*a, directory=ROOT, **kw)
+
+    # never cache: always serve the latest files (local app)
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store, must-revalidate")
+        super().end_headers()
+
+    def do_GET(self):
+        if self.path.split("?")[0] == "/api/whoami":     # client's LAN IP
+            ip = self.client_address[0]
+            if ip == "::1":
+                ip = "127.0.0.1"
+            if ip.startswith("::ffff:"):
+                ip = ip[7:]
+            self._json(200, {"ip": ip})
+            return
+        return super().do_GET()
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length)
+        try:
+            parsed = json.loads(body.decode("utf-8"))              # validate
+        except Exception as exc:                                   # noqa: BLE001
+            self._json(400, {"ok": False, "error": str(exc)})
+            return
+        if self.path == "/api/save":                              # merge shared team data
+            try:
+                with DATA_LOCK:
+                    disk = read_data()
+                    if isinstance(parsed, dict):
+                        disk.update(parsed)
+                    write_data(disk)
+                self._json(200, {"ok": True})
+            except Exception as exc:                               # noqa: BLE001
+                self._json(400, {"ok": False, "error": str(exc)})
+        elif self.path == "/api/workspace":                       # one person's workspace
+            try:
+                user_id = str(parsed.get("userId", "")).strip() if isinstance(parsed, dict) else ""
+                data = parsed.get("data") if isinstance(parsed, dict) else None
+                if not user_id or not isinstance(data, dict):
+                    raise ValueError("userId and data required")
+                with DATA_LOCK:
+                    disk = read_data()
+                    if not isinstance(disk.get("workspaces"), dict):
+                        disk["workspaces"] = {}
+                    disk["workspaces"][user_id] = data
+                    write_data(disk)
+                self._json(200, {"ok": True})
+            except Exception as exc:                               # noqa: BLE001
+                self._json(400, {"ok": False, "error": str(exc)})
+        elif self.path == "/api/shared":                          # shared links and contacts only
+            try:
+                if not isinstance(parsed, dict):
+                    raise ValueError("object required")
+                with DATA_LOCK:
+                    disk = read_data()
+                    if "links" in parsed:
+                        if not isinstance(parsed["links"], list):
+                            raise ValueError("links must be an array")
+                        disk["links"] = parsed["links"]
+                    if "vendors" in parsed:
+                        if not isinstance(parsed["vendors"], list):
+                            raise ValueError("vendors must be an array")
+                        disk["vendors"] = parsed["vendors"]
+                    write_data(disk)
+                self._json(200, {"ok": True})
+            except Exception as exc:                               # noqa: BLE001
+                self._json(400, {"ok": False, "error": str(exc)})
+        elif self.path == "/api/backup":                          # timestamped backup -> ./backups + paths
+            try:
+                data = parsed.get("data") if isinstance(parsed, dict) and "data" in parsed else parsed
+                paths = parsed.get("paths", []) if isinstance(parsed, dict) else []
+                content = json.dumps(data, indent=2, ensure_ascii=False).encode("utf-8")
+                stamp = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+                name = "backup-" + stamp + ".json"
+                written, errors = [], []
+                os.makedirs(BACKUPS, exist_ok=True)
+                with open(os.path.join(BACKUPS, name), "wb") as f:
+                    f.write(content)
+                written.append("backups/" + name)
+                for d in [p for p in paths if p]:
+                    try:
+                        os.makedirs(d, exist_ok=True)
+                        with open(os.path.join(d, name), "wb") as f:
+                            f.write(content)
+                        written.append(os.path.join(d, name))
+                    except Exception as ex:                        # noqa: BLE001
+                        errors.append(str(d) + ": " + str(ex))
+                self._json(200, {"ok": True, "written": written, "errors": errors})
+            except Exception as exc:                               # noqa: BLE001
+                self._json(400, {"ok": False, "error": str(exc)})
+        elif self.path == "/api/nodepath":                        # remember portable Node path
+            try:
+                p = str(parsed.get("path", "")).strip()
+                with open(os.path.join(ROOT, "node-path.txt"), "w", encoding="utf-8") as f:
+                    f.write(p)
+                self._json(200, {"ok": True})
+            except Exception as exc:                               # noqa: BLE001
+                self._json(400, {"ok": False, "error": str(exc)})
+        else:
+            self.send_error(404, "Not found")
+
+    def _json(self, code, obj):
+        payload = json.dumps(obj).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def log_message(self, *a):
+        pass
+
+
+if __name__ == "__main__":
+    httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
+    print(f"  Python server running on 0.0.0.0:{PORT}  (Ctrl+C to stop)")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n  Server stopped.")

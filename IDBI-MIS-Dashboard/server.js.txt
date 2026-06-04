@@ -1,0 +1,172 @@
+/*
+ * IDBI MIS — Work Command Center  |  offline LAN web server (Node stdlib, zero deps)
+ * - Serves the dashboard (works 100% offline, no internet needed).
+ * - POST /api/backup  -> saves a timestamped copy of your data into ./backups/
+ *   (your live data lives in the browser's localStorage; this is an extra safety net.)
+ *
+ * Usage:  node server.js [port]      (default 8080)
+ */
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+
+const PORT = parseInt(process.argv[2] || "8080", 10);
+const ROOT = __dirname;
+const BACKUPS = path.join(ROOT, "backups");
+const DATA_FILE = path.join(ROOT, "data.json");
+
+const MIME = {
+  ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon",
+};
+
+function readData() {
+  try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); }
+  catch (e) { return {}; }
+}
+function writeData(data) {
+  const tmp = path.join(ROOT, "data.json.tmp");
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf8");
+  fs.renameSync(tmp, DATA_FILE);
+}
+function readBody(req, done) {
+  let body = "";
+  req.on("data", (c) => { body += c; if (body.length > 8e6) req.destroy(); });
+  req.on("end", () => {
+    try { done(null, JSON.parse(body || "{}")); }
+    catch (e) { done(e); }
+  });
+}
+
+const server = http.createServer((req, res) => {
+  // GET /api/whoami -> the requesting client's LAN IP (best-effort identity)
+  if (req.method === "GET" && req.url.split("?")[0] === "/api/whoami") {
+    let ip = (req.socket.remoteAddress || "").replace(/^::ffff:/, "");
+    if (ip === "::1") ip = "127.0.0.1";
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+    res.end(JSON.stringify({ ip: ip }));
+    return;
+  }
+
+  // POST /api/save -> merge shared team data.json without clobbering omitted keys
+  if (req.method === "POST" && req.url === "/api/save") {
+    readBody(req, (err, parsed) => {
+      try {
+        if (err) throw err;
+        const disk = readData();
+        writeData(Object.assign({}, disk, parsed));
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/workspace -> replace exactly one person's workspace
+  if (req.method === "POST" && req.url === "/api/workspace") {
+    readBody(req, (err, parsed) => {
+      try {
+        if (err) throw err;
+        const userId = String((parsed && parsed.userId) || "").trim();
+        if (!userId || !parsed || typeof parsed.data !== "object") throw new Error("userId and data required");
+        const disk = readData();
+        disk.workspaces = disk.workspaces && typeof disk.workspaces === "object" ? disk.workspaces : {};
+        disk.workspaces[userId] = parsed.data;
+        writeData(disk);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/shared -> replace shared links and/or contacts only
+  if (req.method === "POST" && req.url === "/api/shared") {
+    readBody(req, (err, parsed) => {
+      try {
+        if (err) throw err;
+        const disk = readData();
+        if (Object.prototype.hasOwnProperty.call(parsed || {}, "links")) {
+          if (!Array.isArray(parsed.links)) throw new Error("links must be an array");
+          disk.links = parsed.links;
+        }
+        if (Object.prototype.hasOwnProperty.call(parsed || {}, "vendors")) {
+          if (!Array.isArray(parsed.vendors)) throw new Error("vendors must be an array");
+          disk.vendors = parsed.vendors;
+        }
+        writeData(disk);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/api/backup") {
+    let body = "";
+    req.on("data", (c) => { body += c; if (body.length > 8e6) req.destroy(); });
+    req.on("end", () => {
+      try {
+        const parsed = JSON.parse(body); // validate
+        // body may be { data, paths:[localDir, sharedDir] } or raw data (legacy)
+        const data = parsed && parsed.data ? parsed.data : parsed;
+        const paths = (parsed && Array.isArray(parsed.paths)) ? parsed.paths : [];
+        const content = JSON.stringify(data, null, 2);
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const name = "backup-" + stamp + ".json";
+        const written = [], errors = [];
+        if (!fs.existsSync(BACKUPS)) fs.mkdirSync(BACKUPS, { recursive: true });
+        fs.writeFileSync(path.join(BACKUPS, name), content, "utf8");
+        written.push("backups/" + name);
+        paths.filter(Boolean).forEach((dir) => {
+          try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, name), content, "utf8"); written.push(path.join(dir, name)); }
+          catch (e) { errors.push(dir + ": " + String(e.message || e)); }
+        });
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, written: written, errors: errors }));
+      } catch (e) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(e) }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/nodepath -> remember portable Node path for next launch (node-path.txt)
+  if (req.method === "POST" && req.url === "/api/nodepath") {
+    let body = "";
+    req.on("data", (c) => { body += c; });
+    req.on("end", () => {
+      try {
+        const p = (JSON.parse(body).path || "").trim();
+        fs.writeFileSync(path.join(ROOT, "node-path.txt"), p, "utf8");
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (e) { res.writeHead(400, { "Content-Type": "application/json" }); res.end(JSON.stringify({ ok: false, error: String(e) })); }
+    });
+    return;
+  }
+
+  // static files
+  let urlPath = decodeURIComponent(req.url.split("?")[0]);
+  if (urlPath === "/") urlPath = "/index.html";
+  const filePath = path.join(ROOT, path.normalize(urlPath));
+  if (!filePath.startsWith(ROOT)) { res.writeHead(403); res.end("Forbidden"); return; }
+  fs.readFile(filePath, (err, data) => {
+    if (err) { res.writeHead(404); res.end("Not found"); return; }
+    res.writeHead(200, { "Content-Type": MIME[path.extname(filePath).toLowerCase()] || "application/octet-stream", "Cache-Control": "no-store, must-revalidate" });
+    res.end(data);
+  });
+});
+
+server.listen(PORT, "0.0.0.0", () => console.log(`  Node server running on 0.0.0.0:${PORT}  (Ctrl+C to stop)`));
