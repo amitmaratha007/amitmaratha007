@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="idbi-light">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IDBI MIS — Work Command Center</title>
-  <link rel="stylesheet" href="assets/style.css?v=17" />
+  <link rel="stylesheet" href="assets/style.css?v=18" />
   <link rel="icon" type="image/png" href="assets/idbi-logo.png" />
 </head>
 <body>
@@ -69,6 +69,7 @@
     <!-- ===================== MAIN ===================== -->
     <main class="main">
       <div class="topbar glass">
+        <button class="btn btn-ghost sq" id="sidebarToggle" title="Hide / show the clock &amp; calendar sidebar" aria-label="Toggle sidebar">☰</button>
         <div><div class="tb-title" id="tbTitle">Overview</div><div class="tb-sub" id="tbSub"></div></div>
         <div class="search-wrap">
           <span class="si-ico">🔍</span>
@@ -93,7 +94,7 @@
   <div id="toast" class="toast glass hidden"></div>
   <input type="file" id="importFile" accept="application/json" class="hidden" />
 
-  <script src="assets/holidays.js?v=17"></script>
-  <script src="assets/app.js?v=17"></script>
+  <script src="assets/holidays.js?v=18"></script>
+  <script src="assets/app.js?v=18"></script>
 </body>
 </html>

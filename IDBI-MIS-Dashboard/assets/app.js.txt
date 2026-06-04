@@ -250,9 +250,9 @@
   function loadUI() {
     try { UI = JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { UI = {}; }
     UI.mode = UI.mode || "team"; UI.teamTab = UI.teamTab || "pendency"; UI.pTab = UI.pTab || "oracle-gl"; UI.subtab = UI.subtab || "firewall-crf";
-    UI.calMonth = UI.calMonth || todayISO().slice(0, 7); UI.theme = UI.theme || "dark"; UI.accent = UI.accent || "#0a84ff"; UI.q = "";
+    UI.calMonth = UI.calMonth || todayISO().slice(0, 7); UI.theme = UI.theme || "idbi-light"; UI.accent = UI.accent || THEME_ACCENT["idbi-light"]; UI.q = "";
     UI.tTag = UI.tTag || "all"; UI.tStatus = UI.tStatus || "all"; UI.tSort = UI.tSort || "due"; UI.dRole = UI.dRole || "all"; UI.dRep = UI.dRep || "all";
-    UI.orgFocus = UI.orgFocus || null;
+    UI.orgFocus = UI.orgFocus || null; UI.sidebarHidden = !!UI.sidebarHidden;
   }
   const saveUI = () => localStorage.setItem(UI_KEY, JSON.stringify(UI));
   function setSaved(s) { const el = $("#savedInd"); if (!el) return; el.className = "saved " + (s === "saving" ? "saving" : (s === "err" ? "err" : "saved-ok")); el.querySelector("span:last-child").textContent = s === "saving" ? "Saving…" : (s === "err" ? "Save failed" : "Saved"); }
@@ -301,6 +301,8 @@
 
   /* ============================ THEME ============================ */
   function applyTheme() { document.documentElement.setAttribute("data-theme", UI.theme); document.documentElement.style.setProperty("--accent", UI.accent); const sel = $("#themeSel"); if (sel) sel.value = UI.theme; $$(".sw").forEach((s) => s.classList.toggle("active", s.dataset.c === UI.accent)); }
+  function applySidebar() { const app = $(".app"); if (app) app.classList.toggle("sidebar-collapsed", !!UI.sidebarHidden); const b = $("#sidebarToggle"); if (b) { b.classList.toggle("active", !UI.sidebarHidden); b.title = UI.sidebarHidden ? "Show the clock & calendar sidebar" : "Hide the clock & calendar sidebar"; } }
+  function toggleSidebar() { UI.sidebarHidden = !UI.sidebarHidden; saveUI(); applySidebar(); }
 
   /* ===================================================================
      RENDER SHELL
@@ -455,9 +457,9 @@
     const canTags = canManageTags();
     const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All</button>` + (TEAM.workTags || []).map((t) => {
       const sel = UI.tTag === t.id ? "active" : "";
-      const del = canTags && teamEdit ? `<button class="subpill tag-del" data-action="del-tag" data-id="${t.id}" title="Delete the “${esc(t.name)}” tab">✕</button>` : "";
+      const del = canTags ? `<button class="subpill tag-del" data-action="del-tag" data-id="${t.id}" title="Delete the “${esc(t.name)}” tab">✕</button>` : "";
       return `<button class="subpill ${sel}" data-action="ttag" data-v="${t.id}"><span class="tdot" style="background:${t.color}"></span>${esc(t.name)}</button>${del}`;
-    }).join("") + (canTags && teamEdit ? `<button class="subpill" data-action="manage-tags" title="Add or edit workspace tabs">＋ Tab</button>` : "");
+    }).join("") + (canTags ? `<button class="subpill" data-action="manage-tags" title="Add or edit workspace tabs">＋ Tab</button>` : "");
     const q = (UI.q || "").trim().toLowerCase(); let items = items0.slice();
     if (UI.tTag !== "all") items = items.filter((w) => w.tag === UI.tTag);
     if (UI.tStatus === "open") items = items.filter((w) => w.status !== "completed");
@@ -888,6 +890,7 @@
 
   /* ============================ EVENTS ============================ */
   function bind() {
+    const sbBtn = $("#sidebarToggle"); if (sbBtn) sbBtn.addEventListener("click", toggleSidebar);
     $("#calPrev").addEventListener("click", () => calShift(-1));
     $("#calNext").addEventListener("click", () => calShift(1));
     $("#calToday").addEventListener("click", () => { UI.calMonth = todayISO().slice(0, 7); saveUI(); renderCalendar(); });
@@ -961,7 +964,7 @@
   /* ============================ BOOT ============================ */
   async function boot() {
     loadUI(); isSuper = localStorage.getItem(SUPER_KEY) === "1"; // first-time users default to the "My Workspace" view (loadUI); returning users keep their last view
-    applyTheme(); buildClock(); renderCalendar();
+    applyTheme(); applySidebar(); buildClock(); renderCalendar();
     bind();
     await loadTeam();
     try { MY_IP = (await (await fetch("./api/whoami", { cache: "no-store" })).json()).ip; } catch (e) { MY_IP = null; }

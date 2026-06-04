@@ -85,7 +85,11 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 /* ======================= APP SHELL ======================= */
-.app { display: grid; grid-template-columns: 300px 1fr; gap: 16px; height: 100vh; padding: 16px; }
+.app { display: grid; grid-template-columns: 300px 1fr; gap: 16px; height: 100vh; padding: 16px; transition: grid-template-columns .18s ease; }
+/* collapsed: hide the clock/calendar sidebar and let the main area span full width */
+.app.sidebar-collapsed { grid-template-columns: 1fr; }
+.app.sidebar-collapsed > .sidebar { display: none; }
+#sidebarToggle { font-size: 17px; line-height: 1; flex: 0 0 auto; }
 
 /* ======================= SIDEBAR ======================= */
 .sidebar { padding: 18px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
