@@ -25,14 +25,19 @@
   },
   "workTags": [
     {
-      "id": "circle-gl",
-      "name": "Circle GL",
-      "color": "#3b82f6"
+      "id": "oracle-gl",
+      "name": "Oracle GL",
+      "color": "#0a84ff"
     },
     {
-      "id": "asp-dsp-gst",
-      "name": "ASP+DSP (GST)",
-      "color": "#22c55e"
+      "id": "finsync",
+      "name": "FINSYNC Application",
+      "color": "#64d2ff"
+    },
+    {
+      "id": "saral-asp-gsp",
+      "name": "SARAL GST / ASP-GSP",
+      "color": "#30d158"
     },
     {
       "id": "gst-litigation",
@@ -40,24 +45,24 @@
       "color": "#f59e0b"
     },
     {
-      "id": "cfsi-a",
-      "name": "CFSI.A",
-      "color": "#a855f7"
+      "id": "interest-ie",
+      "name": "Interest Income/Expenses",
+      "color": "#5e5ce6"
+    },
+    {
+      "id": "stationary",
+      "name": "Stationary Bills",
+      "color": "#ef4444"
+    },
+    {
+      "id": "pmps",
+      "name": "PMPs",
+      "color": "#bf5af2"
     },
     {
       "id": "misc",
       "name": "Miscellaneous Work",
       "color": "#64748b"
-    },
-    {
-      "id": "demand-pmp",
-      "name": "Demand & PMP",
-      "color": "#ef4444"
-    },
-    {
-      "id": "interest",
-      "name": "Interest Discount & Approval",
-      "color": "#14b8a6"
     }
   ],
   "people": [
@@ -184,64 +189,304 @@
   ],
   "workItems": [
     {
-      "id": "w1",
-      "title": "CFSI.A reconciliation pending",
-      "tag": "cfsi-a",
+      "id": "wl-01",
+      "title": "Oracle DB access — Tower PCs",
+      "tag": "oracle-gl",
       "assignee": "p-amit",
-      "status": "pending",
-      "priority": "high",
-      "due": "2026-06-10",
-      "notes": "Pending / not completed. Sample item — edit me."
-    },
-    {
-      "id": "w2",
-      "title": "Interest recovery — open case",
-      "tag": "interest",
-      "assignee": "p-amit",
-      "status": "pending",
-      "priority": "medium",
-      "due": "2026-06-15",
-      "notes": "Interest open / recovery in progress."
-    },
-    {
-      "id": "w3",
-      "title": "Service Prepper task",
-      "tag": "misc",
-      "assignee": "p-vivek",
       "status": "in-progress",
-      "priority": "low",
-      "due": "2026-06-20",
+      "priority": "medium",
+      "due": "",
       "notes": ""
     },
     {
-      "id": "w4",
-      "title": "GST Litigation Tool — case update",
-      "tag": "gst-litigation",
-      "assignee": "p-manish",
+      "id": "wl-02",
+      "title": "PIM ARCON access — to be followed up with Rathina",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-03",
+      "title": "Mail revert from Deloitte for certificate",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
       "status": "pending",
       "priority": "medium",
-      "due": "2026-06-12",
+      "due": "",
       "notes": ""
     },
     {
-      "id": "w5",
-      "title": "Circle GL computation",
-      "tag": "circle-gl",
-      "assignee": "p-govind",
-      "status": "completed",
-      "priority": "low",
-      "due": "2026-05-30",
-      "notes": "Computed and verified."
+      "id": "wl-04",
+      "title": "Establishment of full-fledged Disaster Recovery (DR) setup within the approved timeline, with periodic validation of backups in the interim.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "",
+      "notes": "Request raised in ITOMS · Approval to be taken"
     },
     {
-      "id": "w6",
-      "title": "ASP+DSP GST filing",
-      "tag": "asp-dsp-gst",
-      "assignee": "p-shivesh",
-      "status": "completed",
+      "id": "wl-05",
+      "title": "SSL certificate clarification from Deloitte",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "Reply pending from Deloitte"
+    },
+    {
+      "id": "wl-06",
+      "title": "Implementation of appropriate compensating controls to mitigate risks from unencrypted communication during the interim period; strict SIEM monitoring & access controls so no unauthorized access or data compromise.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Follow up from Deloitte"
+    },
+    {
+      "id": "wl-07",
+      "title": "Closure of all open VA/AppSec observations within prescribed timelines or fresh risk approval wherever required",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Closed till 31.03.2026 · New points to be closed"
+    },
+    {
+      "id": "wl-08",
+      "title": "Obtaining vendor security assurance/certificate confirming absence of vulnerabilities, malware and covert channels.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "pending",
       "priority": "high",
-      "due": "2026-06-08",
-      "notes": "Partial / not completed."
+      "due": "2026-06-15",
+      "notes": "To be provided by Deloitte by 15.06.2026"
+    },
+    {
+      "id": "wl-09",
+      "title": "Implementation of automation (STP) for GL upload process within the stipulated timeline for secure, integrity-maintained data transfers.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Clarification to be provided to ISG for non-feasibility · Not feasible — FAD justification mail"
+    },
+    {
+      "id": "wl-10",
+      "title": "Automation of FAD 50 reports in MPP",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-11",
+      "title": "BRS to be analyzed and discussed with Sharvari Kudale / Amit Rathee",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-12",
+      "title": "Taxation — New Application",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "i-Smart to be raised afresh"
+    },
+    {
+      "id": "wl-13",
+      "title": "UAT server setup",
+      "tag": "finsync",
+      "assignee": "p-amit",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "UAT server setup done"
+    },
+    {
+      "id": "wl-14",
+      "title": "i-Smart raised",
+      "tag": "finsync",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-15",
+      "title": "API testing required for accessing NABARD server",
+      "tag": "finsync",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "DMZ UAT server · API documentation pending from NABARD"
+    },
+    {
+      "id": "wl-16",
+      "title": "Encryption approval pending",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-06-30",
+      "notes": "To be deployed by 30.06.2026"
+    },
+    {
+      "id": "wl-17",
+      "title": "Encryption RCA to be provided by Relyon",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-18",
+      "title": "SSL certificate to be provided by Intech",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-19",
+      "title": "Approval to be provided to Intech for patch update",
+      "tag": "gst-litigation",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Mail sent to Narayan sir 03.06.2026"
+    },
+    {
+      "id": "wl-20",
+      "title": "Interest Expenses",
+      "tag": "interest-ie",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "OFSAA integration issue at account level mapping · Batch run Infosys patch · Clarification to be provided by FCG · Meenakshi status update 17:10 03.06"
+    },
+    {
+      "id": "wl-21",
+      "title": "Interest Income",
+      "tag": "interest-ie",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "Revert pending from Brijesh Sharma (FCG) · Delta query issue — data mismatch with TB"
+    },
+    {
+      "id": "wl-22",
+      "title": "Total 5 bills (3 Data Trade + 2 Darshan)",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Requirements"
+    },
+    {
+      "id": "wl-23",
+      "title": "Wall clock to CIO sir",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Provided · New request for latest one"
+    },
+    {
+      "id": "wl-24",
+      "title": "CARD printing — Vishal Galhotra sir",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-25",
+      "title": "Stationary delivery at Belapur office",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-26",
+      "title": "Speaker to be provided to Narayan sir",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-27",
+      "title": "Current bill to be checked for errors",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-28",
+      "title": "DM2026041811 — Data extraction and segmentation for modelling of PD and LGD under ECL Framework",
+      "tag": "pmps",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "2026-06-20",
+      "notes": "Expected extraction of data by 20.06.2026 · Ashwini Deshpande / Abhinay Deo Team"
+    },
+    {
+      "id": "wl-29",
+      "title": "DM2026021680 — Integration of Finacle-sourced customer account-level interest income & expenses with OFSAA system",
+      "tag": "pmps",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Challenges due to unavailable data at FCG level"
+    },
+    {
+      "id": "wl-30",
+      "title": "DM2026011551 — Automation and systematic tracking of data — Statutory Auditors",
+      "tag": "pmps",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Under development"
     }
   ],
   "links": [],
