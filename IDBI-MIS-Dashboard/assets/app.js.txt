@@ -134,9 +134,14 @@
     return !["requests", "trackedProjects", "tasks", "trackers", "links", "vendors"].some((k) => Array.isArray(ws[k]) && ws[k].length);
   }
   function rememberTeam() { if (TEAM) localStorage.setItem(TEAM_CACHE_KEY, JSON.stringify(TEAM)); }
+  // Hard-coded backup/restore drives (mirrored in server.js / server.py): D: = local, Y: = server.
+  const DEFAULT_BACKUP_PATHS = { local: "D:\\MIS backup", shared: "Y:\\Amit\\Old\\MIS backup" };
   function normalizeTeam() {
     TEAM = TEAM || {};
     TEAM.meta = TEAM.meta || {}; TEAM.access = TEAM.access || { enabled: false, ipMap: {} };
+    // Always default to the hard-coded D:/Y: backup drives and keep auto-sync on so data is saved for future iterations.
+    if (!TEAM.access.backupPaths || (!TEAM.access.backupPaths.local && !TEAM.access.backupPaths.shared)) TEAM.access.backupPaths = Object.assign({}, DEFAULT_BACKUP_PATHS);
+    if (TEAM.access.autoSync === undefined) TEAM.access.autoSync = true;
     TEAM.workTags = Array.isArray(TEAM.workTags) ? TEAM.workTags : []; TEAM.people = Array.isArray(TEAM.people) ? TEAM.people : []; TEAM.workItems = Array.isArray(TEAM.workItems) ? TEAM.workItems : [];
     TEAM.links = Array.isArray(TEAM.links) ? TEAM.links : []; TEAM.vendors = Array.isArray(TEAM.vendors) ? TEAM.vendors : []; TEAM.workspaces = TEAM.workspaces && typeof TEAM.workspaces === "object" ? TEAM.workspaces : {};
   }
@@ -789,9 +794,9 @@
       <div class="field">${ck("set-enabled", a.enabled, "Enable IP-based access control")}</div>
       <div class="field">${ck("set-viewall", a.viewAllReadOnly, "Give everyone <b>view-only</b> access to the whole workbook (as Superadmin sees it)")}</div>
       <div class="field"><label>📢 Announcement (shown to everyone, blank = none)</label><textarea id="set-ann" placeholder="e.g. Q1 GST returns due by 20th — please update status.">${esc(a.announcement || "")}</textarea></div>
-      <div class="field"><label>💾 Backup folders (a timestamped copy is written to BOTH on every backup)</label>
-        <input id="set-bp-local" value="${esc(bp.local || "")}" placeholder="Local drive, e.g. D:\\MIS-Backups" style="margin-bottom:8px">
-        <input id="set-bp-shared" value="${esc(bp.shared || "")}" placeholder="Shared/internal drive, e.g. \\\\server\\share\\MIS"></div>
+      <div class="field"><label>💾 Backup folders — D: (local) and Y: (server) are hard-coded defaults; a timestamped copy is written to BOTH on every backup</label>
+        <input id="set-bp-local" value="${esc(bp.local || "")}" placeholder="Local drive (default D:\\MIS backup)" style="margin-bottom:8px">
+        <input id="set-bp-shared" value="${esc(bp.shared || "")}" placeholder="Server drive (default Y:\\Amit\\Old\\MIS backup)"></div>
       <div class="field">${ck("set-autosync", a.autoSync, "Auto-sync these backups on every change")}</div>
       <div class="field"><label>🟩 Portable Node.js path (used on next launch by Start-Dashboard.bat)</label><input id="set-node" value="${esc(a.nodePath || "")}" placeholder="e.g. D:\\node-v20\\node.exe  (or its folder)"></div>
       <div class="field"><label>Map IP → person &nbsp;<span class="faint">(your current IP: <b>${esc(MY_IP || "—")}</b>)</span></label><div class="ipmap">${rows}</div></div>
@@ -850,7 +855,26 @@
   /* ============================ BACKUP / EXPORT ============================ */
   function dl(content, name, type) { const b = new Blob([content], { type }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; a.click(); }
   function exportJSON() { dl(JSON.stringify({ personal: PD, team: TEAM }, null, 2), "idbi-dashboard-backup-" + todayISO() + ".json", "application/json"); toast("Backup downloaded", "ok"); }
-  function importJSON(file) { const fr = new FileReader(); fr.onload = async () => { try { const o = JSON.parse(fr.result); if (!o) throw new Error("invalid"); if (!confirm("Restore data from this backup? Current workspace/team data will be overwritten.")) return; if (o.team) { TEAM = o.team; normalizeTeam(); } if (o.personal) { const owner = workspaceOwnerId(); if (owner) TEAM.workspaces[owner] = normalizeWorkspace(o.personal, workspaceOwnerName()); } syncWorkspace(); rememberTeam(); if (o.team) await saveTeam({ full: true }); else if (o.personal) await savePersonal(); render(); toast("Backup restored", "ok"); } catch (e) { toast("Import failed: " + e.message, "err"); } }; fr.readAsText(file); }
+  async function applyRestoredData(o) {
+    if (!o || typeof o !== "object") throw new Error("invalid backup");
+    if (o.team) { TEAM = o.team; normalizeTeam(); }
+    if (o.personal) { const owner = workspaceOwnerId(); if (owner) TEAM.workspaces[owner] = normalizeWorkspace(o.personal, workspaceOwnerName()); }
+    syncWorkspace(); rememberTeam();
+    if (o.team) await saveTeam({ full: true }); else if (o.personal) await savePersonal();
+    render();
+  }
+  function importJSON(file) { const fr = new FileReader(); fr.onload = async () => { try { const o = JSON.parse(fr.result); if (!o) throw new Error("invalid"); if (!confirm("Restore data from this backup? Current workspace/team data will be overwritten.")) return; await applyRestoredData(o); toast("Backup restored", "ok"); } catch (e) { toast("Import failed: " + e.message, "err"); } }; fr.readAsText(file); }
+  async function restoreLatest() {
+    setSaved("saving");
+    try {
+      const j = await (await fetch("./api/restore-latest", { cache: "no-store" })).json();
+      if (!j.ok) { toast(j.error || "No backup found on D: or Y: drive", "err"); setSaved("err"); return; }
+      const when = j.when ? new Date(j.when).toLocaleString() : "";
+      if (!confirm("Restore the LATEST backup from disk?\n\nFrom: " + (j.from || "") + (when ? "\nSaved: " + when : "") + "\n\nThis overwrites the current team & workspace data.")) { setSaved("saved"); return; }
+      await applyRestoredData(j.data);
+      toast("Restored latest backup ✓", "ok");
+    } catch (e) { toast("Restore needs the server running (Start-Dashboard.bat).", "err"); setSaved("err"); }
+  }
   async function backupToDisk(silent) {
     const bp = accessCfg().backupPaths || {}; const paths = [bp.local, bp.shared].filter(Boolean);
     try {
@@ -943,7 +967,7 @@
       "sr-go": () => srGo(srRes[+el.dataset.i]),
       "modal-x": closeModal, "modal-save": () => { const fn = $("#modal")._save; if (!fn || fn() !== false) closeModal(); }, "info-edit": () => { const fn = $("#modal")._infoEdit; if (fn) fn(); },
       "theme": () => { UI.theme = el.dataset.theme; saveUI(); applyTheme(); }, "accent": () => { UI.accent = el.dataset.c; saveUI(); applyTheme(); },
-      "export-json": exportJSON, "import-json": () => $("#importFile").click(), "backup-disk": backupToDisk,
+      "export-json": exportJSON, "import-json": () => $("#importFile").click(), "backup-disk": backupToDisk, "restore-latest": restoreLatest,
     };
     if (acts[a]) acts[a]();
   }

@@ -16,6 +16,13 @@ BACKUPS = os.path.join(ROOT, "backups")
 DATA_FILE = os.path.join(ROOT, "data.json")
 DATA_LOCK = threading.Lock()  # serialize read-modify-write on data.json (threaded server)
 
+# Hard-coded backup/restore destinations (always used, in addition to ./backups).
+#   LOCAL_BACKUP_DIR  -> D: drive (local backup)
+#   SERVER_BACKUP_DIR -> Y: drive (shared / server backup)
+LOCAL_BACKUP_DIR = "D:\\MIS backup"
+SERVER_BACKUP_DIR = "Y:\\Amit\\Old\\MIS backup"
+HARD_BACKUP_DIRS = [LOCAL_BACKUP_DIR, SERVER_BACKUP_DIR]
+
 
 def read_data():
     try:
@@ -49,6 +56,32 @@ class Handler(SimpleHTTPRequestHandler):
             if ip.startswith("::ffff:"):
                 ip = ip[7:]
             self._json(200, {"ip": ip})
+            return
+        if self.path.split("?")[0] == "/api/restore-latest":   # newest backup across D:, Y:, ./backups
+            best = None
+            for d in [BACKUPS] + HARD_BACKUP_DIRS:
+                try:
+                    files = [f for f in os.listdir(d) if f.startswith("backup-") and f.endswith(".json")]
+                except Exception:                                # noqa: BLE001
+                    continue
+                for f in files:
+                    fp = os.path.join(d, f)
+                    try:
+                        mt = os.path.getmtime(fp)
+                        if best is None or mt > best[1]:
+                            best = (fp, mt)
+                    except Exception:                            # noqa: BLE001
+                        pass
+            if not best:
+                self._json(404, {"ok": False, "error": "No backup-*.json found in " + LOCAL_BACKUP_DIR + ", " + SERVER_BACKUP_DIR + " or ./backups"})
+                return
+            try:
+                with open(best[0], "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._json(200, {"ok": True, "data": data, "from": best[0],
+                                 "when": datetime.datetime.fromtimestamp(best[1]).isoformat()})
+            except Exception as exc:                             # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(exc)})
             return
         return super().do_GET()
 
@@ -115,7 +148,12 @@ class Handler(SimpleHTTPRequestHandler):
                 with open(os.path.join(BACKUPS, name), "wb") as f:
                     f.write(content)
                 written.append("backups/" + name)
-                for d in [p for p in paths if p]:
+                # Always include the hard-coded D: and Y: destinations, plus any extra paths (de-duplicated).
+                all_dirs = []
+                for d in HARD_BACKUP_DIRS + [p for p in paths if p]:
+                    if d not in all_dirs:
+                        all_dirs.append(d)
+                for d in all_dirs:
                     try:
                         os.makedirs(d, exist_ok=True)
                         with open(os.path.join(d, name), "wb") as f:

@@ -15,6 +15,14 @@ const ROOT = __dirname;
 const BACKUPS = path.join(ROOT, "backups");
 const DATA_FILE = path.join(ROOT, "data.json");
 
+// Hard-coded backup/restore destinations (always used, in addition to ./backups).
+//   LOCAL_BACKUP_DIR  -> D: drive (local backup)
+//   SERVER_BACKUP_DIR -> Y: drive (shared / server backup)
+// Every backup is written to BOTH; "restore latest" picks the newest file across them.
+const LOCAL_BACKUP_DIR = "D:\\MIS backup";
+const SERVER_BACKUP_DIR = "Y:\\Amit\\Old\\MIS backup";
+const HARD_BACKUP_DIRS = [LOCAL_BACKUP_DIR, SERVER_BACKUP_DIR];
+
 const MIME = {
   ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8",
@@ -128,7 +136,9 @@ const server = http.createServer((req, res) => {
         if (!fs.existsSync(BACKUPS)) fs.mkdirSync(BACKUPS, { recursive: true });
         fs.writeFileSync(path.join(BACKUPS, name), content, "utf8");
         written.push("backups/" + name);
-        paths.filter(Boolean).forEach((dir) => {
+        // Always include the hard-coded D: and Y: destinations, plus any extra paths from settings (de-duplicated).
+        const allDirs = []; HARD_BACKUP_DIRS.concat(paths).filter(Boolean).forEach((d) => { if (allDirs.indexOf(d) < 0) allDirs.push(d); });
+        allDirs.forEach((dir) => {
           try { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, name), content, "utf8"); written.push(path.join(dir, name)); }
           catch (e) { errors.push(dir + ": " + String(e.message || e)); }
         });
@@ -139,6 +149,34 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ ok: false, error: String(e) }));
       }
     });
+    return;
+  }
+
+  // GET /api/restore-latest -> find the newest backup-*.json across D:, Y: and ./backups and return its contents
+  if (req.method === "GET" && req.url.split("?")[0] === "/api/restore-latest") {
+    try {
+      const dirs = [BACKUPS].concat(HARD_BACKUP_DIRS);
+      let best = null;
+      dirs.forEach((dir) => {
+        let files = [];
+        try { files = fs.readdirSync(dir).filter((f) => /^backup-.*\.json$/i.test(f)); } catch (e) { return; }
+        files.forEach((f) => {
+          const fp = path.join(dir, f);
+          try { const st = fs.statSync(fp); if (!best || st.mtimeMs > best.mtimeMs) best = { fp: fp, mtimeMs: st.mtimeMs }; } catch (e) {}
+        });
+      });
+      if (!best) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "No backup-*.json found in " + LOCAL_BACKUP_DIR + ", " + SERVER_BACKUP_DIR + " or ./backups" }));
+        return;
+      }
+      const data = JSON.parse(fs.readFileSync(best.fp, "utf8"));
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      res.end(JSON.stringify({ ok: true, data: data, from: best.fp, when: new Date(best.mtimeMs).toISOString() }));
+    } catch (e) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: false, error: String(e) }));
+    }
     return;
   }
 
