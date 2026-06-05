@@ -205,7 +205,7 @@
   /* ===================================================================
      TEAM DATA (data.json) + ACCESS CONTROL
      =================================================================== */
-  let TEAM = null, teamEdit = false;
+  let TEAM = null, teamEdit = false, tagEditMode = false;
   let MY_IP = null, currentUserId = null, isSuper = false;
   let realSuper = false, realUserId = null, viewAs = null; // superadmin "view as" impersonation
   const SUPER_KEY = "idbi.dash.super", VIEWAS_KEY = "idbi.viewas";
@@ -213,9 +213,23 @@
   function enterViewAs(id) { if (!realSuper) return; viewAs = id || null; if (viewAs) sessionStorage.setItem(VIEWAS_KEY, viewAs); else sessionStorage.removeItem(VIEWAS_KEY); teamEdit = false; applyViewAs(); render(); }
   function exitViewAs() { viewAs = null; sessionStorage.removeItem(VIEWAS_KEY); applyViewAs(); render(); }
 
+  let lastTeamRaw = null, lastSaveTs = 0;
   async function loadTeam() {
-    try { TEAM = await (await fetch("./data.json?ts=" + Date.now(), { cache: "no-store" })).json(); normalizeTeam(); rememberTeam(); }
+    try { const txt = await (await fetch("./data.json?ts=" + Date.now(), { cache: "no-store" })).text(); lastTeamRaw = txt; TEAM = JSON.parse(txt); normalizeTeam(); rememberTeam(); }
     catch (e) { try { TEAM = JSON.parse(localStorage.getItem(TEAM_CACHE_KEY)); } catch (x) { TEAM = null; } normalizeTeam(); }
+  }
+  // Poll the shared data.json so entries added by other users appear (and become searchable) automatically.
+  async function pollTeam() {
+    if (document.hidden) return;
+    if (!$("#modal").classList.contains("hidden")) return;        // don't disrupt an open editor
+    if (Date.now() - lastSaveTs < 4000) return;                   // let the user's own just-saved change settle
+    let txt; try { txt = await (await fetch("./data.json?ts=" + Date.now(), { cache: "no-store" })).text(); } catch (e) { return; }
+    if (!txt || txt === lastTeamRaw) return;                      // nothing changed on the server
+    let fresh; try { fresh = JSON.parse(txt); } catch (e) { return; }
+    lastTeamRaw = txt; TEAM = fresh; normalizeTeam(); rememberTeam(); syncWorkspace();
+    if ((UI.q || "").trim()) srRes = buildSearch(UI.q);
+    render();
+    if (!$("#searchResults").classList.contains("hidden")) renderSearch();
   }
   async function saveTeam(opts) {
     setSaved("saving");
@@ -261,7 +275,7 @@
     UI.clockCollapsed = !!UI.clockCollapsed; UI.calCollapsed = !!UI.calCollapsed;
   }
   const saveUI = () => localStorage.setItem(UI_KEY, JSON.stringify(UI));
-  function setSaved(s) { const el = $("#savedInd"); if (!el) return; el.className = "saved " + (s === "saving" ? "saving" : (s === "err" ? "err" : "saved-ok")); el.querySelector("span:last-child").textContent = s === "saving" ? "Saving…" : (s === "err" ? "Save failed" : "Saved"); }
+  function setSaved(s) { if (s === "saving" || s === "saved") lastSaveTs = Date.now(); const el = $("#savedInd"); if (!el) return; el.className = "saved " + (s === "saving" ? "saving" : (s === "err" ? "err" : "saved-ok")); el.querySelector("span:last-child").textContent = s === "saving" ? "Saving…" : (s === "err" ? "Save failed" : "Saved"); }
 
   /* ============================ CLOCK ============================ */
   function buildClock() {
@@ -464,14 +478,35 @@
   const canAddWorkItem = () => !viewAs && ((teamEdit && canEdit()) || !!currentUserId);
   // Workspace tabs (Circle GL, ASP+DSP …) are shared team-wide. Superadmin can always add/delete for everyone.
   const canManageTags = () => !viewAs && (isSuper || canAddWorkItem());
+  // Two summary pies for My Workspace: pending count per topic + breakdown by status.
+  function pendencyPies(items) {
+    if (!items.length) return "";
+    const open = items.filter((w) => w.status !== "completed");
+    const tagSlices = (TEAM.workTags || []).map((t, i) => { const n = open.filter((w) => w.tag === t.id).length; return { id: t.id, name: t.name, short: t.name, sub: "", color: t.color || PALETTE[i % PALETTE.length], weight: n, count: n, action: "pie-tag" }; }).filter((s) => s.weight > 0);
+    const overdue = items.filter(wiOverdue).length;
+    const stStats = [
+      { id: "pending", name: "Pending", color: "#f59e0b", count: items.filter((w) => w.status === "pending" && !wiOverdue(w)).length },
+      { id: "in-progress", name: "In Progress", color: "#0a84ff", count: items.filter((w) => w.status === "in-progress" && !wiOverdue(w)).length },
+      { id: "overdue", name: "Overdue", color: "#ff375f", count: overdue },
+      { id: "completed", name: "Completed", color: "#30d158", count: items.filter((w) => w.status === "completed").length },
+    ];
+    const stSlices = stStats.map((s) => ({ id: s.id, name: s.name, short: s.name, sub: "", color: s.color, weight: s.count, count: s.count, action: "pie-status" })).filter((s) => s.weight > 0);
+    const legend = (slices) => slices.map((s) => `<span class="pleg"><i style="background:${s.color}"></i>${esc(s.name)} <b>${s.count}</b></span>`).join("");
+    const totalOpen = open.length;
+    const col = (title, slices, center, sub) => slices.length
+      ? `<div class="pie-col"><div class="pie-h">${title}</div><div class="pie-mini">${donut(slices, center, sub)}</div><div class="pleg-wrap">${legend(slices)}</div></div>`
+      : `<div class="pie-col"><div class="pie-h">${title}</div><div class="empty small" style="padding:20px">Nothing to show</div></div>`;
+    return `<div class="card glass pend-pies">${col("Pendency by topic", tagSlices, String(totalOpen), "open")}${col("By status", stSlices, String(items.length), "items")}</div>`;
+  }
   function viewPendency() {
     const items0 = vItems();
     const canTags = canManageTags();
+    const editing = canTags && tagEditMode;
     const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All</button>` + (TEAM.workTags || []).map((t) => {
       const sel = UI.tTag === t.id ? "active" : "";
-      const del = canTags ? `<button class="subpill tag-del" data-action="del-tag" data-id="${t.id}" title="Delete the “${esc(t.name)}” tab">✕</button>` : "";
+      const del = editing ? `<button class="subpill tag-del" data-action="del-tag" data-id="${t.id}" title="Delete the “${esc(t.name)}” tab">✕</button>` : "";
       return `<button class="subpill ${sel}" data-action="ttag" data-v="${t.id}"><span class="tdot" style="background:${t.color}"></span>${esc(t.name)}</button>${del}`;
-    }).join("") + (canTags ? `<button class="subpill" data-action="manage-tags" title="Add or edit workspace tabs">＋ Tab</button>` : "");
+    }).join("") + (editing ? `<button class="subpill" data-action="manage-tags" title="Add or rename workspace tabs">＋ Tab</button>` : "");
     const q = (UI.q || "").trim().toLowerCase(); let items = items0.slice();
     if (UI.tTag !== "all") items = items.filter((w) => w.tag === UI.tTag);
     if (UI.tStatus === "open") items = items.filter((w) => w.status !== "completed");
@@ -487,7 +522,8 @@
     const list = items.length ? `<div class="tbl">${head}${rows}</div>` : `<div class="empty glass"><div class="e-ico">🗂️</div><p>No items match your filters.</p></div>`;
     const dummyCount = (TEAM.workItems || []).filter(isDummyItem).length;
     const canClear = !viewAs && (isSuper || (teamEdit && canEdit()));
-    return `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canClear && dummyCount ? `<button class="btn btn-ghost btn-sm" data-action="clear-dummies" title="Remove all dummy items added to fill the dashboard">🧹 Clear dummy (${dummyCount})</button>` : ""}${canTags ? `<button class="btn btn-ghost btn-sm" data-action="manage-tags" title="Add, rename or delete the workspace tabs (Circle GL, ASP+DSP …)">⚙ Edit tabs</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
+    return `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canClear && dummyCount ? `<button class="btn btn-ghost btn-sm" data-action="clear-dummies" title="Remove all dummy items added to fill the dashboard">🧹 Clear dummy (${dummyCount})</button>` : ""}${canTags ? `<button class="btn btn-ghost btn-sm ${editing ? "" : "btn-ghost"}" data-action="toggle-tagedit" title="Show/hide the ✕ delete buttons on the topic tabs">${editing ? "✓ Done editing tabs" : "⚙ Edit tabs"}</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
+      ${pendencyPies(items0)}
       <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div class="subnav" style="padding:0">${chips}</div></div>
       <div class="toolbar" style="display:flex;gap:8px;margin-bottom:14px"><select class="select" data-action="tstatus">${["all", "open", "pending", "in-progress", "completed", "overdue"].map((s) => `<option value="${s}" ${UI.tStatus === s ? "selected" : ""}>${s === "all" ? "All statuses" : (s === "open" ? "Open (all pending)" : (s === "overdue" ? "Overdue" : ST_LABEL[s]))}</option>`).join("")}</select><select class="select" data-action="tsort"><option value="due" ${UI.tSort === "due" ? "selected" : ""}>Sort: Due date</option><option value="priority" ${UI.tSort === "priority" ? "selected" : ""}>Sort: Priority</option></select></div>${list}`;
   }
@@ -980,6 +1016,9 @@
       "add-wi": () => { if (canAddWorkItem()) editWorkItem(null, !teamEdit); else toast("Ask admin to map this PC before adding work", "err"); }, "edit-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w)) editWorkItem(id, !teamEdit); else toast("You don't have edit rights for this item", "err"); }, "del-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w) && confirm("Delete this item?")) { TEAM.workItems = TEAM.workItems.filter((x) => x.id !== id); render(); saveTeam(); } },
       "add-person": () => guardTeam() && editPerson(null), "edit-person": () => { if (viewAs) { toast("Exit view-as to make changes", "err"); return; } if (id && id === workspaceOwnerId()) { editPerson(id); return; } if (guardTeam() && canEdit(id)) editPerson(id); }, "del-person": () => { if (guardTeam() && canEdit(id) && confirm("Remove this person?")) { TEAM.people = TEAM.people.filter((x) => x.id !== id); render(); saveTeam(); } },
       "manage-tags": () => manageWorkTags(), "clear-dummies": clearDummyItems,
+      "toggle-tagedit": () => { if (!canManageTags()) { toast("You can't edit tabs here", "err"); return; } tagEditMode = !tagEditMode; render(); },
+      "pie-tag": () => { UI.tTag = id; UI.tStatus = "open"; saveUI(); render(); $("#content").scrollTop = 0; },
+      "pie-status": () => { UI.tStatus = el.dataset.id || "all"; saveUI(); render(); $("#content").scrollTop = 0; },
       "del-tag": () => { if (!canManageTags()) { toast("You can't manage tabs here", "err"); return; } const t = tag(id); if (t && confirm(`Delete the “${t.name}” tab for everyone? Items using it keep their stored tab until re-tagged.`)) { TEAM.workTags = (TEAM.workTags || []).filter((x) => x.id !== id); if (UI.tTag === id) UI.tTag = "all"; render(); saveTeam(); toast("Tab deleted"); } },
       "wt-add-row": () => { const box = $("#wt-rows"); if (box) { box.insertAdjacentHTML("beforeend", wtRowHtml("", PALETTE[$$("#wt-rows .wt-row").length % PALETTE.length])); const last = box.querySelector(".wt-row:last-child .wt-name"); if (last) last.focus(); } },
       "wt-del-row": () => { const row = el.closest(".wt-row"); if (row) row.remove(); },
@@ -1020,6 +1059,7 @@
     await migrateLegacyPersonal(); syncWorkspace();
     $("#ownerName").textContent = workspaceOwnerId() ? workspaceOwnerName() : "Guest";
     render(); setSaved("saved"); showWelcome();
+    setInterval(pollTeam, 12000); window.addEventListener("focus", pollTeam);  // keep all users' views in sync
     setTimeout(() => { const over = vItems().filter(wiOverdue).length; if (over) toast(`⏰ ${over} item${over > 1 ? "s" : ""} overdue in your scope`, "err"); }, 800);
   }
   document.addEventListener("DOMContentLoaded", boot);
