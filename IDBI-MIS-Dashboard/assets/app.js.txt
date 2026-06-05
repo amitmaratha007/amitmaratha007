@@ -208,7 +208,7 @@
   let TEAM = null, teamEdit = false, tagEditMode = false;
   let MY_IP = null, currentUserId = null, isSuper = false;
   let realSuper = false, realUserId = null, viewAs = null; // superadmin "view as" impersonation
-  const SUPER_KEY = "idbi.dash.super", VIEWAS_KEY = "idbi.viewas";
+  const SUPER_KEY = "idbi.dash.super", VIEWAS_KEY = "idbi.viewas", START_ROLE_KEY = "idbi.startrole";
   function applyViewAs() { if (viewAs && person(viewAs)) { currentUserId = viewAs; isSuper = false; } else { viewAs = null; currentUserId = realUserId; isSuper = realSuper; } syncWorkspace(); }
   function enterViewAs(id) { if (!realSuper) return; viewAs = id || null; if (viewAs) sessionStorage.setItem(VIEWAS_KEY, viewAs); else sessionStorage.removeItem(VIEWAS_KEY); teamEdit = false; applyViewAs(); render(); }
   function exitViewAs() { viewAs = null; sessionStorage.removeItem(VIEWAS_KEY); applyViewAs(); render(); }
@@ -355,7 +355,7 @@
       const opts = `<option value="">— View as: Myself (admin) —</option>` + (TEAM.people || []).map((p) => `<option value="${p.id}" ${viewAs === p.id ? "selected" : ""}>👁 ${esc(p.name)}</option>`).join("");
       html += `<select class="select" data-action="viewas" style="width:100%;margin-bottom:6px">${opts}</select>`;
       if (viewAs) html += `<button class="btn btn-ghost btn-sm" data-action="their-welcome" style="width:100%;margin-bottom:6px">▶ See their welcome screen</button><button class="btn btn-sm" data-action="exit-viewas" style="width:100%;margin-bottom:6px">↩ Exit view-as</button>`;
-      html += `<div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-action="settings" style="flex:1">⚙ Settings</button>${host ? "" : `<button class="btn btn-ghost btn-sm" data-action="logout-super">Logout</button>`}</div>`;
+      html += `<div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-action="settings" style="flex:1">⚙ Settings</button>${host ? `<button class="btn btn-ghost btn-sm" data-action="start-chooser" title="Switch between Superadmin and a person for today">🔄 Switch role</button>` : `<button class="btn btn-ghost btn-sm" data-action="logout-super">Logout</button>`}</div>`;
     } else if (isSuper) {
       html += `<div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-action="settings" style="flex:1">⚙ Settings</button><button class="btn btn-ghost btn-sm" data-action="logout-super">Logout</button></div>`;
     } else {
@@ -680,19 +680,32 @@
   }
   const closeModal = () => $("#modal").classList.add("hidden");
 
+  const updaterName = () => { const p = currentUserId ? person(currentUserId) : null; return p ? p.name : (isSuper ? "Superadmin" : "You"); };
+  const fmtDateTime = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
+  function sortedUpdates(w) { return (Array.isArray(w.updates) ? w.updates.slice() : []).sort((a, b) => (b.at || "").localeCompare(a.at || "")); }
   function viewWorkItem(id) {
     const w = (TEAM.workItems || []).find((x) => x.id === id); if (!w) return;
     const t = tag(w.tag), a = person(w.assignee), cd = cdInfo(w.due, w.status === "completed");
     const st = wiOverdue(w) ? "Overdue" : ST_LABEL[w.status];
+    const canEd = canEditWorkItem(w);
     const row = (l, v) => `<div class="info-row"><span class="il">${l}</span><span>${v}</span></div>`;
+    const ups = sortedUpdates(w);
+    let trail = "";
+    if (ups.length || w.notes) {
+      trail = `<div class="upd-list">` + ups.map((u, i) => `<div class="upd${i === 0 ? " latest" : ""}"><span class="upd-dot"></span><div class="upd-b"><div class="upd-meta">${i === 0 ? `<span class="upd-now">Current status</span> · ` : ""}${esc(fmtDateTime(u.at))}${u.by ? " · " + esc(u.by) : ""}${canEd ? ` <span class="upd-del" data-action="wi-del-update" data-id="${w.id}" data-i="${i}" title="Delete this update">✕</span>` : ""}</div><div class="upd-text">${esc(u.text)}</div></div></div>`).join("") +
+        (w.notes ? `<div class="upd base"><span class="upd-dot"></span><div class="upd-b"><div class="upd-meta">Initial note</div><div class="upd-text">${esc(w.notes)}</div></div></div>` : "") + `</div>`;
+    } else {
+      trail = `<div class="faint small" style="margin:2px 0 4px">No updates yet${canEd ? " — add the first one below." : "."}</div>`;
+    }
+    const addBox = canEd ? `<div class="upd-add"><textarea id="wi-update-text" rows="2" placeholder="Add a status update… e.g. “Approval received from ISG on 05.06.2026”"></textarea><button class="btn btn-sm" data-action="wi-add-update" data-id="${w.id}">＋ Add update</button></div>` : "";
     const body = row("Title", `<b>${esc(w.title)}</b>`) +
       row("Work tag", t ? `<span class="badge" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">${esc(t.name)}</span>` : "—") +
       row("Assigned to", a ? `<b>${esc(a.name)}</b> · ${esc(a.role)}<br><a href="mailto:${esc(a.email)}">${esc(a.email)}</a>${a.mobile ? " · 📱 " + esc(a.mobile) : ""}` : "Unassigned") +
       row("Status", `<span class="badge ${wiOverdue(w) ? "b-rejected" : ST_CLASS[w.status]}">${st}</span>`) +
       row("Priority", `<span class="prio ${w.priority || "low"}">${(w.priority || "low").toUpperCase()}</span>`) +
       row("Due", `${fmtDate(w.due)} <span class="cd ${cd.cls}">${cd.label}</span>`) +
-      (w.notes ? row("Notes", esc(w.notes)) : "");
-    openInfo("Work item", body, canEditWorkItem(w) ? () => { closeModal(); editWorkItem(id, !teamEdit); } : null);
+      `<div class="upd-section"><div class="il" style="margin:12px 0 8px">📝 Update trail <span class="faint small">(latest first)</span></div>${trail}${addBox}</div>`;
+    openInfo("Work item", body, canEd ? () => { closeModal(); editWorkItem(id, !teamEdit); } : null);
   }
 
   /* ---- personal modals ---- */
@@ -967,6 +980,28 @@
   }
   function hideWelcome() { sessionStorage.setItem("idbi.welcomed", "1"); $("#welcome").classList.add("hidden"); }
 
+  /* ===== start-of-day role chooser (admin / host PC only) ===== */
+  function applyStartRole(role) {
+    if (role === "super") { isSuper = true; realSuper = true; currentUserId = (accessCfg().ipMap || {})[MY_IP] || null; realUserId = currentUserId; }
+    else if (person(role)) { isSuper = true; realSuper = true; currentUserId = role; realUserId = role; }   // host stays Superadmin-capable, but works as the chosen person
+    else return;
+    viewAs = null; sessionStorage.removeItem(VIEWAS_KEY); sessionStorage.setItem(START_ROLE_KEY, role);
+    teamEdit = false; UI.mode = "team"; UI.teamTab = "pendency"; saveUI();
+    syncWorkspace(); render();
+  }
+  function showStartChooser() {
+    const h = new Date().getHours(); const greet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    const ppl = TEAM.people || [];
+    const opts = ppl.map((p) => `<option value="${p.id}" ${p.id === "p-amit" ? "selected" : ""}>${esc(p.name)} · ${esc(p.roleLevel)}</option>`).join("");
+    $("#modalCard").innerHTML = `<div class="modal-head"><h3>${greet} — how do you want to start today?</h3></div>
+      <div class="modal-body">
+        <p class="faint small" style="margin:0">This is the admin PC. Choose <b>Superadmin</b> to manage the whole team, or continue as a person to focus on their own workspace. You can switch anytime from the sidebar.</p>
+        <button class="btn" data-action="start-super" style="width:100%;padding:12px">🔐 Superadmin — manage the whole team</button>
+        <div class="field"><label>Or continue as a person</label><div style="display:flex;gap:8px"><select id="start-person" class="select" style="flex:1">${opts}</select><button class="btn btn-ghost" data-action="start-person">👤 Continue</button></div></div>
+      </div>`;
+    $("#modal").classList.remove("hidden"); $("#modal")._save = null; $("#modal")._infoEdit = null;
+  }
+
   /* ============================ EVENTS ============================ */
   function bind() {
     const sbBtn = $("#sidebarToggle"); if (sbBtn) sbBtn.addEventListener("click", toggleSidebar);
@@ -998,6 +1033,8 @@
       "cal-day": () => { const h = window.HOLIDAY_BY_DATE[el.dataset.iso]; if (h) toast("🎉 " + h.name + " · " + fmtDate(el.dataset.iso)); },
       kpi: () => { const k = el.dataset.k; UI.mode = "team"; UI.teamTab = "pendency"; UI.tTag = "all"; UI.tStatus = (k === "week" ? "all" : k); if (k === "week") UI.tSort = "due"; saveUI(); render(); $("#content").scrollTop = 0; },
       "view-wi": () => viewWorkItem(id),
+      "wi-add-update": () => { const w = (TEAM.workItems || []).find((x) => x.id === id); if (!w || !canEditWorkItem(w)) { toast("You can't update this item", "err"); return; } const ta = $("#wi-update-text"); const txt = (ta && ta.value || "").trim(); if (!txt) { toast("Write an update first", "err"); return; } w.updates = Array.isArray(w.updates) ? w.updates : []; w.updates.push({ at: new Date().toISOString(), by: updaterName(), text: txt }); render(); saveTeam(); viewWorkItem(id); toast("Update added", "ok"); },
+      "wi-del-update": () => { const w = (TEAM.workItems || []).find((x) => x.id === id); if (!w || !canEditWorkItem(w)) return; const target = sortedUpdates(w)[+el.dataset.i]; if (target && confirm("Delete this update from the trail?")) { w.updates = (w.updates || []).filter((u) => u !== target); render(); saveTeam(); viewWorkItem(id); } },
       "org-slice": () => { UI.orgFocus = id; saveUI(); render(); },
       "org-up": () => { const f = person(UI.orgFocus); if (f && f.reportsTo && UI.orgFocus !== baseRootId()) { UI.orgFocus = f.reportsTo; saveUI(); render(); } },
       "org-focus": () => { UI.orgFocus = id; saveUI(); render(); },
@@ -1012,6 +1049,9 @@
       "add-link": () => viewAs ? toast("Exit view-as to make changes", "err") : editLink(null, el.dataset.scope || "shared"), "edit-link": () => viewAs ? toast("Exit view-as to make changes", "err") : editLink(id, el.dataset.scope || "shared"), "del-link": () => { const scope = el.dataset.scope || "shared"; if (!viewAs && (scope === "shared" || mineReady()) && confirm("Delete this link?")) { const list = linkList(scope), i = list.findIndex((x) => x.id === id); if (i >= 0) list.splice(i, 1); render(); saveScopedList(scope, "links"); } },
       "add-vendor": () => viewAs ? toast("Exit view-as to make changes", "err") : editVendor(null, el.dataset.scope || "shared"), "edit-vendor": () => viewAs ? toast("Exit view-as to make changes", "err") : editVendor(id, el.dataset.scope || "shared"), "del-vendor": () => { const scope = el.dataset.scope || "shared"; if (!viewAs && (scope === "shared" || mineReady()) && confirm("Delete this contact?")) { const list = vendorList(scope), i = list.findIndex((x) => x.id === id); if (i >= 0) list.splice(i, 1); render(); saveScopedList(scope, "vendors"); } },
       "exit-viewas": exitViewAs, "their-welcome": () => showWelcome(true),
+      "start-super": () => { applyStartRole("super"); closeModal(); toast("Started as Superadmin", "ok"); showWelcome(true); },
+      "start-person": () => { const pid = ($("#start-person") || {}).value; if (!pid) return; applyStartRole(pid); closeModal(); toast("Started as " + ((person(pid) || {}).name || ""), "ok"); showWelcome(true); },
+      "start-chooser": () => showStartChooser(),
       "ttag": () => { UI.tTag = el.dataset.v; saveUI(); render(); }, "drole": () => { UI.dRole = el.dataset.v; saveUI(); render(); },
       "add-wi": () => { if (canAddWorkItem()) editWorkItem(null, !teamEdit); else toast("Ask admin to map this PC before adding work", "err"); }, "edit-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w)) editWorkItem(id, !teamEdit); else toast("You don't have edit rights for this item", "err"); }, "del-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w) && confirm("Delete this item?")) { TEAM.workItems = TEAM.workItems.filter((x) => x.id !== id); render(); saveTeam(); } },
       "add-person": () => guardTeam() && editPerson(null), "edit-person": () => { if (viewAs) { toast("Exit view-as to make changes", "err"); return; } if (id && id === workspaceOwnerId()) { editPerson(id); return; } if (guardTeam() && canEdit(id)) editPerson(id); }, "del-person": () => { if (guardTeam() && canEdit(id) && confirm("Remove this person?")) { TEAM.people = TEAM.people.filter((x) => x.id !== id); render(); saveTeam(); } },
@@ -1053,12 +1093,18 @@
     await loadTeam();
     try { MY_IP = (await (await fetch("./api/whoami", { cache: "no-store" })).json()).ip; } catch (e) { MY_IP = null; }
     currentUserId = (accessCfg().ipMap || {})[MY_IP] || null;
-    if (isLoopback(MY_IP)) isSuper = true;   // the PC running the .bat = host superadmin
+    const host = isLoopback(MY_IP);
+    const startRole = host ? sessionStorage.getItem(START_ROLE_KEY) : null;
+    if (host) {
+      if (startRole && startRole !== "super" && person(startRole)) { isSuper = true; currentUserId = startRole; }   // chosen earlier this session
+      else isSuper = true;   // the PC running the .bat = host superadmin (default until they choose)
+    }
     realUserId = currentUserId; realSuper = isSuper;
     viewAs = sessionStorage.getItem(VIEWAS_KEY) || null; applyViewAs();
     await migrateLegacyPersonal(); syncWorkspace();
     $("#ownerName").textContent = workspaceOwnerId() ? workspaceOwnerName() : "Guest";
-    render(); setSaved("saved"); showWelcome();
+    render(); setSaved("saved");
+    if (host && !startRole) showStartChooser(); else showWelcome();
     setInterval(pollTeam, 12000); window.addEventListener("focus", pollTeam);  // keep all users' views in sync
     setTimeout(() => { const over = vItems().filter(wiOverdue).length; if (over) toast(`⏰ ${over} item${over > 1 ? "s" : ""} overdue in your scope`, "err"); }, 800);
   }

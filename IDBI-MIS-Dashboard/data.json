@@ -226,7 +226,24 @@
       "status": "in-progress",
       "priority": "high",
       "due": "",
-      "notes": "Request raised in ITOMS · Approval to be taken"
+      "notes": "Request raised in ITOMS · Approval to be taken",
+      "updates": [
+        {
+          "at": "2026-05-20T10:05:00.000Z",
+          "by": "Amit Dethe",
+          "text": "DR setup request raised in ITOMS (CRF logged)."
+        },
+        {
+          "at": "2026-05-28T16:30:00.000Z",
+          "by": "Amit Dethe",
+          "text": "BRS shared and under analysis with Sharvari Kudale / Amit Rathee."
+        },
+        {
+          "at": "2026-06-03T11:15:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Approval pending from IS-Security; follow-up mail sent. Interim backup validation continuing."
+        }
+      ]
     },
     {
       "id": "wl-05",
@@ -266,7 +283,14 @@
       "status": "pending",
       "priority": "high",
       "due": "2026-06-15",
-      "notes": "To be provided by Deloitte by 15.06.2026"
+      "notes": "To be provided by Deloitte by 15.06.2026",
+      "updates": [
+        {
+          "at": "2026-06-01T12:00:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Requested vendor security certificate from Deloitte; committed by 15.06.2026."
+        }
+      ]
     },
     {
       "id": "wl-09",
@@ -346,7 +370,19 @@
       "status": "pending",
       "priority": "high",
       "due": "2026-06-30",
-      "notes": "To be deployed by 30.06.2026"
+      "notes": "To be deployed by 30.06.2026",
+      "updates": [
+        {
+          "at": "2026-05-30T09:40:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Encryption change submitted; target deployment 30.06.2026."
+        },
+        {
+          "at": "2026-06-04T15:20:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Awaiting RCA from Relyon before approval can be granted."
+        }
+      ]
     },
     {
       "id": "wl-17",
