@@ -278,7 +278,7 @@
     UI.calMonth = UI.calMonth || todayISO().slice(0, 7); UI.theme = UI.theme || "idbi-light"; UI.accent = UI.accent || THEME_ACCENT["idbi-light"]; UI.q = "";
     UI.tTag = UI.tTag || "all"; UI.tStatus = UI.tStatus || "all"; UI.tSort = UI.tSort || "due"; UI.dRole = UI.dRole || "all"; UI.dRep = UI.dRep || "all";
     UI.orgFocus = UI.orgFocus || null; UI.sidebarHidden = !!UI.sidebarHidden;
-    UI.clockCollapsed = !!UI.clockCollapsed; UI.calCollapsed = !!UI.calCollapsed;
+    UI.clockCollapsed = !!UI.clockCollapsed; UI.calCollapsed = !!UI.calCollapsed; UI.snapCollapsed = !!UI.snapCollapsed;
   }
   const saveUI = () => localStorage.setItem(UI_KEY, JSON.stringify(UI));
   function setSaved(s) { if (s === "saving" || s === "saved") lastSaveTs = Date.now(); const el = $("#savedInd"); if (!el) return; el.className = "saved " + (s === "saving" ? "saving" : (s === "err" ? "err" : "saved-ok")); el.querySelector("span:last-child").textContent = s === "saving" ? "Saving…" : (s === "err" ? "Save failed" : "Saved"); }
@@ -484,34 +484,37 @@
   const canAddWorkItem = () => !viewAs && ((teamEdit && canEdit()) || !!currentUserId);
   // Workspace tabs (Circle GL, ASP+DSP …) are shared team-wide. Superadmin can always add/delete for everyone.
   const canManageTags = () => !viewAs && (isSuper || canAddWorkItem());
-  // Two summary pies for My Workspace: pending count per topic + breakdown by status.
+  // Workload snapshot: two clean pies for My Workspace — open per topic + breakdown by status.
   function pendencyPies(items) {
     if (!items.length) return "";
     const open = items.filter((w) => w.status !== "completed");
+    const totalOpen = open.length;
+    if (UI.snapCollapsed) return `<div class="card glass snap collapsed"><div class="snap-head"><b>📊 Workload snapshot</b><span class="faint small">${totalOpen} open · ${items.length} total</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="toggle-snap">Show ▾</button></div></div>`;
     const tagSlices = (TEAM.workTags || []).map((t, i) => { const n = open.filter((w) => w.tag === t.id).length; return { id: t.id, name: t.name, short: t.name, sub: "", color: t.color || PALETTE[i % PALETTE.length], weight: n, count: n, action: "pie-tag" }; }).filter((s) => s.weight > 0);
     const overdue = items.filter(wiOverdue).length;
     const stStats = [
+      { id: "overdue", name: "Overdue", color: "#ff375f", count: overdue },
       { id: "pending", name: "Pending", color: "#f59e0b", count: items.filter((w) => w.status === "pending" && !wiOverdue(w)).length },
       { id: "in-progress", name: "In Progress", color: "#0a84ff", count: items.filter((w) => w.status === "in-progress" && !wiOverdue(w)).length },
-      { id: "overdue", name: "Overdue", color: "#ff375f", count: overdue },
       { id: "completed", name: "Completed", color: "#30d158", count: items.filter((w) => w.status === "completed").length },
     ];
     const stSlices = stStats.map((s) => ({ id: s.id, name: s.name, short: s.name, sub: "", color: s.color, weight: s.count, count: s.count, action: "pie-status" })).filter((s) => s.weight > 0);
-    const legend = (slices) => slices.map((s) => `<span class="pleg"><i style="background:${s.color}"></i>${esc(s.name)} <b>${s.count}</b></span>`).join("");
-    const totalOpen = open.length;
-    const col = (title, slices, center, sub) => slices.length
-      ? `<div class="pie-col"><div class="pie-h">${title}</div><div class="pie-mini">${donut(slices, center, sub)}</div><div class="pleg-wrap">${legend(slices)}</div></div>`
-      : `<div class="pie-col"><div class="pie-h">${title}</div><div class="empty small" style="padding:20px">Nothing to show</div></div>`;
-    return `<div class="card glass pend-pies">${col("Pendency by topic", tagSlices, String(totalOpen), "open")}${col("By status", stSlices, String(items.length), "items")}</div>`;
+    const legend = (slices, action) => slices.map((s) => `<button class="pleg" data-action="${action}" data-id="${s.id}"><i style="background:${s.color}"></i><span class="pleg-n">${esc(s.name)}</span><b>${s.count}</b></button>`).join("");
+    const col = (title, slices, center, sub, action) => slices.length
+      ? `<div class="pie-col"><div class="pie-h">${title}</div><div class="pie-mini">${donut(slices, center, sub, true)}</div><div class="pleg-wrap">${legend(slices, action)}</div></div>`
+      : `<div class="pie-col"><div class="pie-h">${title}</div><div class="empty small" style="padding:24px">Nothing to show</div></div>`;
+    return `<div class="card glass snap"><div class="snap-head"><b>📊 Workload snapshot</b><span class="faint small">${totalOpen} open · ${items.length} total</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="toggle-snap">Hide ▴</button></div><div class="pend-pies">${col("Open items by topic", tagSlices, String(totalOpen), "open", "pie-tag")}${col("By status", stSlices, String(items.length), "items", "pie-status")}</div></div>`;
   }
   function viewPendency() {
     const items0 = myOwnItems();   // your tab shows only your own work items; reports are seen via the Overview pie
     const canTags = canManageTags();
     const editing = canTags && tagEditMode;
-    const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All</button>` + (TEAM.workTags || []).map((t) => {
+    const openOf = (tid) => items0.filter((w) => (tid === "all" || w.tag === tid) && w.status !== "completed").length;
+    const cnt = (n) => `<span class="c${n ? "" : " z"}">${n}</span>`;
+    const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All ${cnt(openOf("all"))}</button>` + (TEAM.workTags || []).map((t) => {
       const sel = UI.tTag === t.id ? "active" : "";
       const del = editing ? `<button class="subpill tag-del" data-action="del-tag" data-id="${t.id}" title="Delete the “${esc(t.name)}” tab">✕</button>` : "";
-      return `<button class="subpill ${sel}" data-action="ttag" data-v="${t.id}"><span class="tdot" style="background:${t.color}"></span>${esc(t.name)}</button>${del}`;
+      return `<button class="subpill ${sel}" data-action="ttag" data-v="${t.id}" title="${openOf(t.id)} open item(s)"><span class="tdot" style="background:${t.color}"></span>${esc(t.name)} ${cnt(openOf(t.id))}</button>${del}`;
     }).join("") + (editing ? `<button class="subpill" data-action="manage-tags" title="Add or rename workspace tabs">＋ Tab</button>` : "");
     const q = (UI.q || "").trim().toLowerCase(); let items = items0.slice();
     if (UI.tTag !== "all") items = items.filter((w) => w.tag === UI.tTag);
@@ -557,7 +560,7 @@
 
   function subtreeWorkCount(id) { const s = descendants(id); s.add(id); return (TEAM.workItems || []).filter((w) => s.has(w.assignee)).length; }
   // generic donut: slices = [{id,name,short,sub,color,weight,count,action}]
-  function donut(slices, centerName, centerSub) {
+  function donut(slices, centerName, centerSub, hideLabels) {
     const data = slices.map((s) => ({ s: s, w: Math.max(s.weight, 0) }));
     let total = data.reduce((a, d) => a + d.w, 0); if (total === 0) { data.forEach((d) => (d.w = 1)); total = data.length || 1; }
     const R = 130, r = 72, cx = 160, cy = 160; let ang = -Math.PI / 2, paths = "";
@@ -569,7 +572,8 @@
       const cnt = (d.s.count !== "" && d.s.count != null) ? " — " + d.s.count + " works" : "";
       paths += `<path class="slice" data-action="${d.s.action}" data-id="${d.s.id}" d="M${x1} ${y1} A${R} ${R} 0 ${large} 1 ${x2} ${y2} L${xi2} ${yi2} A${r} ${r} 0 ${large} 0 ${xi1} ${yi1} Z" fill="${d.s.color}"><title>${esc(d.s.name)}${cnt}</title></path>`;
       const mid = (ang + a2) / 2, lr = (R + r) / 2;
-      if (frac > 0.07) paths += `<text class="slice-lbl" x="${cx + lr * Math.cos(mid)}" y="${cy + lr * Math.sin(mid)}" text-anchor="middle" dy=".35em">${esc((d.s.short || d.s.name).slice(0, 12))}</text>`;
+      if (frac > 0.07 && !hideLabels) paths += `<text class="slice-lbl" x="${cx + lr * Math.cos(mid)}" y="${cy + lr * Math.sin(mid)}" text-anchor="middle" dy=".35em">${esc((d.s.short || d.s.name).slice(0, 12))}</text>`;
+      if (frac > 0.06 && hideLabels) paths += `<text class="slice-val" x="${cx + lr * Math.cos(mid)}" y="${cy + lr * Math.sin(mid)}" text-anchor="middle" dy=".35em">${d.s.count}</text>`;
       ang = a2;
     });
     paths += `<circle class="donut-center" cx="${cx}" cy="${cy}" r="${r - 4}" data-action="org-up"><title>Up one level</title></circle>`;
@@ -1068,6 +1072,7 @@
       "add-person": () => guardTeam() && editPerson(null), "edit-person": () => { if (viewAs) { toast("Exit view-as to make changes", "err"); return; } if (id && id === workspaceOwnerId()) { editPerson(id); return; } if (guardTeam() && canEdit(id)) editPerson(id); }, "del-person": () => { if (guardTeam() && canEdit(id) && confirm("Remove this person?")) { TEAM.people = TEAM.people.filter((x) => x.id !== id); render(); saveTeam(); } },
       "manage-tags": () => manageWorkTags(), "clear-dummies": clearDummyItems,
       "toggle-tagedit": () => { if (!canManageTags()) { toast("You can't edit tabs here", "err"); return; } tagEditMode = !tagEditMode; render(); },
+      "toggle-snap": () => { UI.snapCollapsed = !UI.snapCollapsed; saveUI(); render(); },
       "pie-tag": () => { UI.tTag = id; UI.tStatus = "open"; saveUI(); render(); $("#content").scrollTop = 0; },
       "pie-status": () => { UI.tStatus = el.dataset.id || "all"; saveUI(); render(); $("#content").scrollTop = 0; },
       "del-tag": () => { if (!canManageTags()) { toast("You can't manage tabs here", "err"); return; } const t = tag(id); if (t && confirm(`Delete the “${t.name}” tab for everyone? Items using it keep their stored tab until re-tagged.`)) { TEAM.workTags = (TEAM.workTags || []).filter((x) => x.id !== id); if (UI.tTag === id) UI.tTag = "all"; render(); saveTeam(); toast("Tab deleted"); } },
