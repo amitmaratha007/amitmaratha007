@@ -205,7 +205,7 @@
   /* ===================================================================
      TEAM DATA (data.json) + ACCESS CONTROL
      =================================================================== */
-  let TEAM = null, teamEdit = false, tagEditMode = false;
+  let TEAM = null, teamEdit = false, tagEditMode = false, lastOverviewRoot = null;
   let MY_IP = null, currentUserId = null, isSuper = false;
   let realSuper = false, realUserId = null, viewAs = null; // superadmin "view as" impersonation
   const SUPER_KEY = "idbi.dash.super", VIEWAS_KEY = "idbi.viewas", START_ROLE_KEY = "idbi.startrole";
@@ -446,34 +446,49 @@
       { ic: "📅", c: "var(--purple)", v: week.length, l: "Due ≤ 7 days", k: "week" },
     ];
     const kpiHtml = kpis.map((k) => `<div class="kpi glass clickable" data-action="kpi" data-k="${k.k}"><div class="k-top"><span class="k-ico" style="background:color-mix(in srgb,${k.c} 20%,transparent);color:${k.c}">${k.ic}</span>${k.l}</div><div class="k-val">${k.v}</div></div>`).join("");
-    // ---- drill-down pie (org → reports → works) ----
+    // ---- organisation / topic visualisation: big pie (left) + small breakdown pies (right) ----
     const ppl = TEAM.people || [], kids = (idx) => ppl.filter((p) => p.reportsTo === idx);
     const br = baseRootId();
+    if (lastOverviewRoot !== br) { UI.orgFocus = br; lastOverviewRoot = br; }   // reset focus when the logged-in / viewed person changes
     if (!UI.orgFocus || !person(UI.orgFocus)) UI.orgFocus = br;
     { const allowed = descendants(br); allowed.add(br); if (!allowed.has(UI.orgFocus)) UI.orgFocus = br; }   // keep the pie within the logged-in person's reporting tree
     const focus = person(UI.orgFocus);
     let pie = "";
     if (focus) {
+      const subOpenCount = (id) => { const s = descendants(id); s.add(id); return (TEAM.workItems || []).filter((w) => s.has(w.assignee) && w.status !== "completed").length; };
+      const subItems = (id) => { const s = descendants(id); s.add(id); return (TEAM.workItems || []).filter((w) => s.has(w.assignee)); };
+      const topicSlices = (its) => (TEAM.workTags || []).map((t, i) => { const n = its.filter((w) => w.tag === t.id).length; return { id: t.id, name: t.name, short: t.name, color: t.color || PALETTE[i % PALETTE.length], weight: n, count: n, action: "pie-tag" }; }).filter((s) => s.weight > 0);
+      const statusSlices = (its) => [
+        { id: "overdue", name: "Overdue", color: "#ff375f", count: its.filter(wiOverdue).length },
+        { id: "pending", name: "Pending", color: "#f59e0b", count: its.filter((w) => w.status === "pending" && !wiOverdue(w)).length },
+        { id: "in-progress", name: "In Progress", color: "#0a84ff", count: its.filter((w) => w.status === "in-progress" && !wiOverdue(w)).length },
+        { id: "completed", name: "Completed", color: "#30d158", count: its.filter((w) => w.status === "completed").length },
+      ].map((s) => ({ id: s.id, name: s.name, short: s.name, color: s.color, weight: s.count, count: s.count, action: "" })).filter((s) => s.weight > 0);
+      const fname = focus.name.split(" ")[0];
       let chain = [], cur = focus; while (cur) { chain.unshift(cur); if (cur.id === br) break; cur = person(cur.reportsTo); }
       const crumbs = chain.map((c) => `<span class="crumb" data-action="org-focus" data-id="${c.id}">${esc(c.name.split(" ")[0])}</span>`).join('<span class="crumb-sep">›</span>');
+      const smallPie = (title, slices, badge) => `<div class="mini-pie"><div class="mini-pie-h">${esc(title)}${badge != null ? ` <span class="c">${badge}</span>` : ""}</div>${slices.length ? donut(slices, "", "", true) : `<div class="mini-empty">none</div>`}</div>`;
       const children = kids(UI.orgFocus);
-      const works = (TEAM.workItems || []).filter((w) => w.assignee === UI.orgFocus);
-      const fname = focus.name.split(" ")[0];
-      let slices;
-      if (children.length) {
-        slices = children.map((c, i) => ({ id: c.id, name: c.name, short: c.name.split(" ")[0], sub: c.roleLevel, color: PALETTE[i % PALETTE.length], weight: Math.max(subtreeWorkCount(c.id), 0), count: subtreeWorkCount(c.id), action: "org-slice" }));
-      } else {
-        slices = works.map((w, i) => { const t = tag(w.tag); return { id: w.id, name: w.title, short: t ? t.name : w.title, sub: ST_LABEL[w.status] + (w.due ? " · " + cdInfo(w.due, w.status === "completed").label : ""), color: t ? t.color : PALETTE[i % PALETTE.length], weight: 1, count: "", action: "view-wi" }; });
+      let leftTitle, leftSlices, leftCenter, rightTitle, smalls;
+      if (children.length) {   // reporting authority → people-wise
+        leftTitle = `${esc(fname)}'s team — open work by person`;
+        leftSlices = children.map((c, i) => ({ id: c.id, name: c.name, short: c.name.split(" ")[0], color: PALETTE[i % PALETTE.length], weight: Math.max(subOpenCount(c.id), 0), count: subOpenCount(c.id), action: "org-slice" }));
+        leftCenter = String(children.reduce((a, c) => a + subOpenCount(c.id), 0));
+        rightTitle = "Each report — open by topic";
+        smalls = children.map((c) => smallPie(c.name.split(" ")[0], topicSlices(subItems(c.id).filter((w) => w.status !== "completed")), subOpenCount(c.id))).join("");
+      } else {                 // individual → topic-wise
+        const works = (TEAM.workItems || []).filter((w) => w.assignee === UI.orgFocus);
+        const ownOpen = works.filter((w) => w.status !== "completed");
+        leftTitle = `${esc(fname)}'s work — open by topic`;
+        leftSlices = topicSlices(ownOpen);
+        leftCenter = String(ownOpen.length);
+        rightTitle = "Each topic — by status";
+        smalls = leftSlices.map((s) => smallPie(s.name, statusSlices(works.filter((w) => w.tag === s.id)), works.filter((w) => w.tag === s.id && w.status !== "completed").length)).join("");
       }
-      const heading = children.length ? `${esc(fname)}'s team — slice size = workload` : `${esc(fname)}'s works — click a slice to open`;
-      let body;
-      if (slices.length) {
-        const legend = slices.map((s) => `<div class="leg" data-action="${s.action}" data-id="${s.id}"><span class="leg-dot" style="background:${s.color}"></span><span class="leg-n">${esc(s.name)} <span class="faint small">${esc(s.sub || "")}</span></span>${s.count === "" ? "" : `<span class="leg-c">${s.count}</span>`}</div>`).join("");
-        body = `<div class="faint small" style="margin-bottom:10px">${heading}</div><div class="pie-wrap"><div>${donut(slices, fname, children.length ? focus.roleLevel : works.length + " works")}</div><div class="legend">${legend}</div></div>`;
-      } else {
-        body = `<div class="empty"><div class="e-ico">🥧</div><p>${esc(fname)} has no works assigned.</p></div>`;
-      }
-      pie = `<h3 style="margin:6px 2px 10px">🥧 Organisation — click a slice to drill in, the centre to go up</h3><div class="breadcrumb">${crumbs}</div><div class="card glass">${body}</div>`;
+      const leftLegend = leftSlices.map((s) => `<button class="pleg" data-action="${s.action}" data-id="${s.id}"><i style="background:${s.color}"></i><span class="pleg-n">${esc(s.name)}</span><b>${s.count}</b></button>`).join("");
+      const leftBody = leftSlices.length ? `<div class="pie-mini">${donut(leftSlices, leftCenter, "open", true)}</div><div class="pleg-wrap">${leftLegend}</div>` : `<div class="empty"><div class="e-ico">🥧</div><p>Nothing open for ${esc(fname)} right now.</p></div>`;
+      pie = `<div class="ov-head"><h3 style="margin:0">🥧 Organisation</h3><div class="breadcrumb" style="margin:0">${crumbs}</div><span class="faint small">click a slice or legend to drill in · centre to go up</span></div>
+        <div class="ov-grid"><div class="card glass ov-pie"><div class="pie-h">${leftTitle}</div>${leftBody}</div><div class="card glass ov-pie"><div class="pie-h">${rightTitle}</div><div class="mini-grid">${smalls || `<div class="mini-empty" style="padding:18px">No breakdown to show.</div>`}</div></div></div>`;
     }
     const up = open.filter((w) => w.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 5).map((w) => { const t = tag(w.tag), a = person(w.assignee), cd = cdInfo(w.due, false); return `<div class="mi clickable" data-action="view-wi" data-id="${w.id}"><span class="mi-dot" style="background:${t ? t.color : "#888"}"></span><div><div class="mi-m">${esc(w.title)}</div><div class="mi-s">${t ? esc(t.name) : ""}${a ? " · " + esc(a.name) : ""}</div></div><div class="mi-r"><span class="cd ${cd.cls}">${cd.label}</span></div></div>`; }).join("") || `<div class="empty small">Nothing pending 🎉</div>`;
     return `<div class="kpis">${kpiHtml}</div>${pie}<div class="card glass" style="margin-top:14px"><h3>⏳ Upcoming &amp; overdue</h3><div class="mlist">${up}</div></div>`;
@@ -1073,8 +1088,8 @@
       "manage-tags": () => manageWorkTags(), "clear-dummies": clearDummyItems,
       "toggle-tagedit": () => { if (!canManageTags()) { toast("You can't edit tabs here", "err"); return; } tagEditMode = !tagEditMode; render(); },
       "toggle-snap": () => { UI.snapCollapsed = !UI.snapCollapsed; saveUI(); render(); },
-      "pie-tag": () => { UI.tTag = id; UI.tStatus = "open"; saveUI(); render(); $("#content").scrollTop = 0; },
-      "pie-status": () => { UI.tStatus = el.dataset.id || "all"; saveUI(); render(); $("#content").scrollTop = 0; },
+      "pie-tag": () => { UI.mode = "team"; UI.teamTab = "pendency"; UI.tTag = id; UI.tStatus = "open"; saveUI(); render(); $("#content").scrollTop = 0; },
+      "pie-status": () => { UI.mode = "team"; UI.teamTab = "pendency"; UI.tStatus = el.dataset.id || "all"; saveUI(); render(); $("#content").scrollTop = 0; },
       "del-tag": () => { if (!canManageTags()) { toast("You can't manage tabs here", "err"); return; } const t = tag(id); if (t && confirm(`Delete the “${t.name}” tab for everyone? Items using it keep their stored tab until re-tagged.`)) { TEAM.workTags = (TEAM.workTags || []).filter((x) => x.id !== id); if (UI.tTag === id) UI.tTag = "all"; render(); saveTeam(); toast("Tab deleted"); } },
       "wt-add-row": () => { const box = $("#wt-rows"); if (box) { box.insertAdjacentHTML("beforeend", wtRowHtml("", PALETTE[$$("#wt-rows .wt-row").length % PALETTE.length])); const last = box.querySelector(".wt-row:last-child .wt-name"); if (last) last.focus(); } },
       "wt-del-row": () => { const row = el.closest(".wt-row"); if (row) row.remove(); },
