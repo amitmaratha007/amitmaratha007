@@ -1,0 +1,46 @@
+/* =========================================================================
+   Maharashtra — Holiday list 2026   (works fully offline)
+   -------------------------------------------------------------------------
+   ⚠️  PLEASE VERIFY the festival dates against the official RBI / Maharashtra
+       Government 2026 holiday gazette before relying on them. Dates of
+       moon-based / lunar festivals (Eid, Holi, Diwali, Ganesh Chaturthi, etc.)
+       can shift by a day. National & fixed-date holidays are reliable.
+
+   To change anything, just edit this file and refresh — nothing else needed.
+   types: national | state | festival | bank | restricted
+   ========================================================================= */
+window.MH_HOLIDAYS_2026 = [
+  { date: "2026-01-01", name: "New Year's Day",                         type: "restricted" },
+  { date: "2026-01-14", name: "Makar Sankranti",                       type: "festival" },
+  { date: "2026-01-26", name: "Republic Day",                          type: "national" },
+  { date: "2026-02-15", name: "Maha Shivaratri",                       type: "festival" },
+  { date: "2026-02-19", name: "Chh. Shivaji Maharaj Jayanti",          type: "state" },
+  { date: "2026-03-03", name: "Holika Dahan",                          type: "restricted" },
+  { date: "2026-03-04", name: "Holi / Dhulivandan",                    type: "festival" },
+  { date: "2026-03-19", name: "Gudi Padwa",                            type: "state" },
+  { date: "2026-03-20", name: "Ramzan Id (Eid-ul-Fitr) *",             type: "festival" },
+  { date: "2026-03-26", name: "Ram Navami",                            type: "festival" },
+  { date: "2026-03-31", name: "Mahavir Jayanti",                       type: "festival" },
+  { date: "2026-04-01", name: "Bank Annual Closing",                   type: "bank" },
+  { date: "2026-04-03", name: "Good Friday",                           type: "festival" },
+  { date: "2026-04-14", name: "Dr. B. R. Ambedkar Jayanti",           type: "state" },
+  { date: "2026-05-01", name: "Maharashtra Day / Buddha Purnima",      type: "state" },
+  { date: "2026-05-27", name: "Bakri Id (Eid-ul-Adha) *",             type: "festival" },
+  { date: "2026-06-26", name: "Muharram *",                            type: "festival" },
+  { date: "2026-07-25", name: "Ashadi Ekadashi",                       type: "state" },
+  { date: "2026-08-15", name: "Independence Day",                      type: "national" },
+  { date: "2026-08-26", name: "Id-e-Milad *",                          type: "festival" },
+  { date: "2026-09-04", name: "Krishna Janmashtami",                   type: "festival" },
+  { date: "2026-09-14", name: "Ganesh Chaturthi",                      type: "state" },
+  { date: "2026-09-24", name: "Anant Chaturdashi",                     type: "festival" },
+  { date: "2026-10-02", name: "Gandhi Jayanti",                        type: "national" },
+  { date: "2026-10-20", name: "Dussehra (Vijayadashami)",             type: "festival" },
+  { date: "2026-11-08", name: "Diwali (Lakshmi Pujan)",                type: "festival" },
+  { date: "2026-11-10", name: "Bali Pratipada (Diwali Padwa)",        type: "festival" },
+  { date: "2026-11-11", name: "Bhau Beej",                             type: "festival" },
+  { date: "2026-11-24", name: "Guru Nanak Jayanti",                    type: "festival" },
+  { date: "2026-12-25", name: "Christmas",                             type: "national" },
+];
+
+/* quick lookup helpers used by the app */
+window.HOLIDAY_BY_DATE = window.MH_HOLIDAYS_2026.reduce((m, h) => ((m[h.date] = h), m), {});

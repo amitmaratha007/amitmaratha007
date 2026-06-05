@@ -1,0 +1,1144 @@
+/* =========================================================================
+   IDBI MIS — Work Command Center  ·  app logic (vanilla JS, fully offline)
+   TEAM mode (default) + per-person WORKSPACE mode.
+   IP-based identity: each person sees / edits themselves + their reports.
+   Superadmin (password) overrides everything.  ⚠ IP/PIN = convenience gate,
+   not real security on a trusted LAN.
+   ========================================================================= */
+(function () {
+  "use strict";
+
+  /* ----------------------------- helpers ----------------------------- */
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const uid = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+
+  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const isoOf = (d) => { const x = new Date(d); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`; };
+  const todayISO = () => isoOf(new Date());
+  const parseISO = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const daysFromToday = (iso) => Math.round((parseISO(iso) - parseISO(todayISO())) / 86400000);
+  const daysBetween = (a, b) => Math.round((parseISO(b) - parseISO(a)) / 86400000);
+  const fmtDate = (iso) => { if (!iso) return "—"; const d = parseISO(iso); return `${String(d.getDate()).padStart(2, "0")} ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`; };
+  const initials = (n) => (n || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+  function avatar(seed) { let h = 0; for (let i = 0; i < (seed || "").length; i++) h = (h * 31 + seed.charCodeAt(i)) % 360; return `hsl(${h} 55% 45%)`; }
+  function cdInfo(dateISO, done) {
+    if (done) return { cls: "ok", label: "Completed" };
+    if (!dateISO) return { cls: "none", label: "No deadline" };
+    const d = daysFromToday(dateISO);
+    if (d < 0) return { cls: "over", label: `Overdue ${Math.abs(d)}d` };
+    if (d === 0) return { cls: "soon", label: "Due today" };
+    if (d <= 3) return { cls: "soon", label: `Due in ${d}d` };
+    return { cls: "ok", label: `Due in ${d}d` };
+  }
+
+  const STATUS = ["pending", "in-progress", "completed"];
+  const ST_LABEL = { pending: "Pending", "in-progress": "In Progress", completed: "Completed" };
+  const ST_CLASS = { pending: "b-pending", "in-progress": "b-progress", completed: "b-completed" };
+  const REQ_STATUS = ["raised", "pending", "in-progress", "approved", "completed", "rejected", "on-hold"];
+  const REQ_LABEL = { raised: "Raised", pending: "Pending", "in-progress": "In Progress", approved: "Approved", completed: "Completed", rejected: "Rejected", "on-hold": "On Hold" };
+  const REQ_CLASS = { raised: "b-raised", pending: "b-pending", "in-progress": "b-progress", approved: "b-approved", completed: "b-completed", rejected: "b-rejected", "on-hold": "b-hold" };
+  const PROJ_STATUS = ["Requirement", "Development", "UAT", "Pre-Prod", "Go-Live", "Live", "On Hold", "Closed"];
+  const PROJ_CLASS = { Requirement: "b-dev", Development: "b-dev", UAT: "b-uat", "Pre-Prod": "b-uat", "Go-Live": "b-pending", Live: "b-live", "On Hold": "b-hold", Closed: "b-completed" };
+  const PALETTE = ["#0a84ff", "#30d158", "#ff9f0a", "#bf5af2", "#ff375f", "#64d2ff", "#ffd60a", "#5e5ce6", "#ff6482", "#40c8e0"];
+  const THEMES = ["dark", "light", "idbi-dark", "idbi-light", "genz", "pink-dark"];
+  const THEME_ACCENT = { dark: "#0a84ff", light: "#0a84ff", "idbi-dark": "#16a34a", "idbi-light": "#138808", genz: "#ff4fa3", "pink-dark": "#ff4f9a" };
+
+  /* ===================================================================
+     WORKSPACE DATA (server source of truth + per-user local cache)
+     =================================================================== */
+  const LEGACY_PERS_KEY = "idbi.amit.dash.data.v1";
+  const MIG_KEY = "idbi.migrated.v5";
+  const TEAM_CACHE_KEY = "idbi.dash.team.cache.v5";
+  const CACHE_PREFIX = "idbi.dash.cache.";
+  const WORKSPACE_VERSION = 5;
+  const PERS_DEFAULTS = {
+    meta: { owner: "Amit Dethe", version: WORKSPACE_VERSION },
+    projects: [
+      { id: "oracle-gl", name: "Oracle GL", icon: "🗄️", color: "#0a84ff" },
+      { id: "asp-gsp", name: "ASP-GSP (GST)", icon: "🧾", color: "#30d158" },
+      { id: "gst-lit", name: "GST Litigation Tool", icon: "⚖️", color: "#ff9f0a" },
+      { id: "misc", name: "Miscellaneous Work", icon: "🗂️", color: "#bf5af2" },
+    ],
+    reqTypes: [
+      { id: "firewall-crf", name: "Firewall CRF" },
+      { id: "ismart", name: "i-Smart Request" },
+      { id: "service", name: "Service Request" },
+      { id: "change", name: "Change Request" },
+    ],
+    requests: [
+      { id: "r1", project: "oracle-gl", type: "firewall-crf", ref: "CRF-2026-0142", title: "Open port 1521 for GL DB server", raised: "2026-05-20", deadline: "2026-06-05", status: "pending", owner: "Amit Dethe", approver: "Surya Bihari", notes: "Awaiting IS-Security approval. (sample — edit/delete me)" },
+      { id: "r2", project: "asp-gsp", type: "ismart", ref: "ISR-88231", title: "New GSTR-1 report access", raised: "2026-05-28", deadline: "2026-06-10", status: "in-progress", owner: "Amit Dethe", approver: "Ankit Agarwal", notes: "" },
+      { id: "r3", project: "gst-lit", type: "service", ref: "SR-55012", title: "Litigation module data correction", raised: "2026-05-15", deadline: "2026-05-30", status: "pending", owner: "Amit Dethe", approver: "Vendor", notes: "Vendor SLA breached." },
+      { id: "r4", project: "oracle-gl", type: "change", ref: "CHG-2026-0091", title: "GL account mapping change FY26", raised: "2026-04-30", deadline: "2026-05-25", status: "completed", completedOn: "2026-05-22", owner: "Amit Dethe", approver: "Surya Bihari", notes: "Closed." },
+      { id: "r5", project: "misc", type: "service", ref: "SR-55109", title: "Printer mapping — Belapur office", raised: "2026-06-01", deadline: "", status: "raised", owner: "Amit Dethe", approver: "", notes: "" },
+    ],
+    trackedProjects: [
+      { id: "tp1", name: "Oracle GL Upgrade (R12 → Cloud)", status: "UAT", uat: "2026-06-15", goLive: "2026-07-01", owner: "Amit Dethe", progress: 65, notes: "UAT cycle 2 in progress. (sample)" },
+      { id: "tp2", name: "GST Litigation Tool v2", status: "Development", uat: "2026-07-20", goLive: "2026-08-10", owner: "Amit Dethe", progress: 40, notes: "" },
+      { id: "tp3", name: "ASP-GSP Auto-Reconciliation", status: "Go-Live", uat: "2026-05-25", goLive: "2026-06-08", owner: "Amit Dethe", progress: 90, notes: "Go-live prep." },
+    ],
+    tasks: [
+      { id: "t1", title: "Follow up Firewall CRF-0142", project: "oracle-gl", priority: "high", due: "2026-06-04", done: false },
+      { id: "t2", title: "Prepare UAT sign-off document", project: "gst-lit", priority: "medium", due: "2026-06-12", done: false },
+      { id: "t3", title: "Monthly GST reconciliation", project: "asp-gsp", priority: "low", due: "2026-06-30", done: false },
+    ],
+    trackers: [
+      {
+        id: "returns", name: "Regulatory Returns", icon: "📑",
+        columns: [
+          { id: "name", label: "Return name", type: "text" },
+          { id: "subcat", label: "Sub-category", type: "text" },
+          { id: "due", label: "Due date", type: "date" },
+          { id: "desc", label: "Description", type: "text" },
+          { id: "status", label: "Current status", type: "select", options: ["Pending", "In Progress", "Filed", "Overdue"] },
+          { id: "filed", label: "Return date", type: "date" },
+        ],
+        rows: [
+          { id: "rr1", values: { name: "GSTR-3B (May 2026)", subcat: "GST", due: "2026-06-20", desc: "Monthly summary return", status: "Pending", filed: "" } },
+          { id: "rr2", values: { name: "GSTR-1 (May 2026)", subcat: "GST", due: "2026-06-11", desc: "Outward supplies", status: "In Progress", filed: "" } },
+        ],
+      },
+    ],
+    links: [],
+    vendors: [],
+  };
+  let PD = null;
+  const cacheKey = (id) => CACHE_PREFIX + id;
+  const workspaceOwnerName = () => { const p = person(workspaceOwnerId()); return p ? p.name : (PD && PD.meta && PD.meta.owner) || "Workspace"; };
+  const AMIT_ID = "p-amit"; // only Amit's workspace ships with the default project tabs; everyone else starts blank and builds their own
+  const seedWorkspace = (owner, ownerId) => ({ meta: { owner: owner || "Workspace", version: WORKSPACE_VERSION }, projects: ownerId === AMIT_ID ? clone(PERS_DEFAULTS.projects) : [], reqTypes: clone(PERS_DEFAULTS.reqTypes), requests: [], trackedProjects: [], tasks: [], trackers: [], links: [], vendors: [] });
+  function normalizeWorkspace(raw, owner, ownerId) {
+    const base = seedWorkspace(owner, ownerId);
+    if (!raw || typeof raw !== "object") return base;
+    const ws = {
+      meta: Object.assign({}, base.meta, raw.meta || {}),
+      projects: Array.isArray(raw.projects) ? raw.projects : base.projects,
+      reqTypes: Array.isArray(raw.reqTypes) ? raw.reqTypes : base.reqTypes,
+      requests: Array.isArray(raw.requests) ? raw.requests : [],
+      trackedProjects: Array.isArray(raw.trackedProjects) ? raw.trackedProjects : [],
+      tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
+      trackers: Array.isArray(raw.trackers) ? raw.trackers : [],
+      links: Array.isArray(raw.links) ? raw.links : [],
+      vendors: Array.isArray(raw.vendors) ? raw.vendors : [],
+    };
+    ws.meta.owner = ws.meta.owner || owner || "Workspace"; ws.meta.version = WORKSPACE_VERSION;
+    return ws;
+  }
+  function workspaceIsEmpty(ws) {
+    if (!ws || typeof ws !== "object") return true;
+    return !["requests", "trackedProjects", "tasks", "trackers", "links", "vendors"].some((k) => Array.isArray(ws[k]) && ws[k].length);
+  }
+  function rememberTeam() { if (TEAM) localStorage.setItem(TEAM_CACHE_KEY, JSON.stringify(TEAM)); }
+  // Hard-coded backup/restore drives (mirrored in server.js / server.py): D: = local, Y: = server.
+  const DEFAULT_BACKUP_PATHS = { local: "D:\\MIS backup", shared: "Y:\\Amit\\Old\\MIS backup" };
+  function normalizeTeam() {
+    TEAM = TEAM || {};
+    TEAM.meta = TEAM.meta || {}; TEAM.access = TEAM.access || { enabled: false, ipMap: {} };
+    // Always default to the hard-coded D:/Y: backup drives and keep auto-sync on so data is saved for future iterations.
+    if (!TEAM.access.backupPaths || (!TEAM.access.backupPaths.local && !TEAM.access.backupPaths.shared)) TEAM.access.backupPaths = Object.assign({}, DEFAULT_BACKUP_PATHS);
+    if (TEAM.access.autoSync === undefined) TEAM.access.autoSync = true;
+    TEAM.workTags = Array.isArray(TEAM.workTags) ? TEAM.workTags : []; TEAM.people = Array.isArray(TEAM.people) ? TEAM.people : []; TEAM.workItems = Array.isArray(TEAM.workItems) ? TEAM.workItems : [];
+    TEAM.links = Array.isArray(TEAM.links) ? TEAM.links : []; TEAM.vendors = Array.isArray(TEAM.vendors) ? TEAM.vendors : []; TEAM.workspaces = TEAM.workspaces && typeof TEAM.workspaces === "object" ? TEAM.workspaces : {};
+  }
+  function cachedWorkspace(id) { try { const raw = JSON.parse(localStorage.getItem(cacheKey(id))); return raw && typeof raw === "object" ? raw : null; } catch (e) { return null; } }
+  function rememberWorkspace(id, ws) { if (id && ws) localStorage.setItem(cacheKey(id), JSON.stringify(ws)); }
+  function ensurePersonalTab() {
+    if (!PD) return;
+    const firstProj = (PD.projects[0] || {}).id || "projects", firstType = (PD.reqTypes[0] || {}).id || "";
+    if ((UI.pTab || "").indexOf("tk:") === 0 && !findTk(UI.pTab.slice(3))) UI.pTab = firstProj;
+    if (!pProj(UI.pTab) && UI.pTab !== "projects" && UI.pTab !== "tasks" && (UI.pTab || "").indexOf("tk:") !== 0) UI.pTab = firstProj;
+    if (!pType(UI.subtab)) UI.subtab = firstType;
+  }
+  function syncWorkspace() {
+    normalizeTeam();
+    const owner = workspaceOwnerId();
+    if (!owner) { PD = null; return; }
+    const ownerName = ((TEAM.people || []).find((p) => p.id === owner) || {}).name || "Workspace";
+    const hadServerWs = !!TEAM.workspaces[owner], cached = cachedWorkspace(owner);
+    let ws = TEAM.workspaces[owner] || cached;
+    ws = normalizeWorkspace(ws, ownerName, owner);
+    TEAM.workspaces[owner] = ws; PD = ws; rememberWorkspace(owner, ws); ensurePersonalTab();
+    if (!viewAs && !hadServerWs) saveWorkspaceNow(owner, ws, true);
+  }
+  async function migrateLegacyPersonal() {
+    let raw = null; try { raw = JSON.parse(localStorage.getItem(LEGACY_PERS_KEY)); } catch (e) {}
+    if (!raw || typeof raw !== "object") return;
+    normalizeTeam();
+    const existing = TEAM.workspaces["p-amit"];
+    if (!workspaceIsEmpty(existing)) { localStorage.setItem(MIG_KEY, "1"); return; }
+    if (workspaceIsEmpty(existing)) {
+      const ws = normalizeWorkspace(raw, "Amit Dethe", "p-amit");
+      ws.meta.owner = "Amit Dethe"; TEAM.workspaces["p-amit"] = ws; rememberWorkspace("p-amit", ws);
+      await saveWorkspaceNow("p-amit", ws, true); localStorage.setItem(MIG_KEY, "1"); rememberTeam();
+    }
+  }
+  async function saveWorkspaceNow(userId, data, silent) {
+    if (!userId || !data) return false;
+    normalizeTeam(); TEAM.workspaces[userId] = data; rememberWorkspace(userId, data); rememberTeam();
+    try {
+      const j = await (await fetch("./api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, data }) })).json();
+      if (!j.ok) throw 0;
+      if (!silent) setSaved("saved");
+      return true;
+    } catch (e) { if (!silent) { setSaved("err"); toast("Workspace save failed (server unavailable?)", "err"); } return false; }
+  }
+  let saveT;
+  function savePersonal(silent) {
+    const owner = workspaceOwnerId();
+    if (!owner || !PD) { if (!silent) toast("Ask your admin to map this PC before using a workspace.", "err"); return Promise.resolve(false); }
+    normalizeTeam(); TEAM.workspaces[owner] = PD; rememberWorkspace(owner, PD); rememberTeam();
+    if (silent) return Promise.resolve(true);
+    setSaved("saving"); clearTimeout(saveT); saveT = setTimeout(() => saveWorkspaceNow(owner, PD, false), 250);
+    if (typeof autoSyncMaybe === "function") autoSyncMaybe();
+    return Promise.resolve(true);
+  }
+  const pProj = (id) => (PD && PD.projects || []).find((p) => p.id === id);
+  const pType = (id) => (PD && PD.reqTypes || []).find((t) => t.id === id);
+  const reqOpen = (r) => r.status !== "completed" && r.status !== "rejected";
+  const reqOverdue = (r) => reqOpen(r) && r.deadline && daysFromToday(r.deadline) < 0;
+
+  /* ===================================================================
+     TEAM DATA (data.json) + ACCESS CONTROL
+     =================================================================== */
+  let TEAM = null, teamEdit = false, tagEditMode = false, lastOverviewRoot = null;
+  let MY_IP = null, currentUserId = null, isSuper = false;
+  let realSuper = false, realUserId = null, viewAs = null; // superadmin "view as" impersonation
+  const SUPER_KEY = "idbi.dash.super", VIEWAS_KEY = "idbi.viewas", START_ROLE_KEY = "idbi.startrole";
+  function applyViewAs() { if (viewAs && person(viewAs)) { currentUserId = viewAs; isSuper = false; } else { viewAs = null; currentUserId = realUserId; isSuper = realSuper; } syncWorkspace(); }
+  function enterViewAs(id) { if (!realSuper) return; viewAs = id || null; if (viewAs) sessionStorage.setItem(VIEWAS_KEY, viewAs); else sessionStorage.removeItem(VIEWAS_KEY); teamEdit = false; applyViewAs(); render(); }
+  function exitViewAs() { viewAs = null; sessionStorage.removeItem(VIEWAS_KEY); applyViewAs(); render(); }
+
+  let lastTeamRaw = null, lastSaveTs = 0;
+  async function loadTeam() {
+    try { const txt = await (await fetch("./data.json?ts=" + Date.now(), { cache: "no-store" })).text(); lastTeamRaw = txt; TEAM = JSON.parse(txt); normalizeTeam(); rememberTeam(); }
+    catch (e) { try { TEAM = JSON.parse(localStorage.getItem(TEAM_CACHE_KEY)); } catch (x) { TEAM = null; } normalizeTeam(); }
+  }
+  // Poll the shared data.json so entries added by other users appear (and become searchable) automatically.
+  async function pollTeam() {
+    if (document.hidden) return;
+    if (!$("#modal").classList.contains("hidden")) return;        // don't disrupt an open editor
+    if (Date.now() - lastSaveTs < 4000) return;                   // let the user's own just-saved change settle
+    let txt; try { txt = await (await fetch("./data.json?ts=" + Date.now(), { cache: "no-store" })).text(); } catch (e) { return; }
+    if (!txt || txt === lastTeamRaw) return;                      // nothing changed on the server
+    let fresh; try { fresh = JSON.parse(txt); } catch (e) { return; }
+    lastTeamRaw = txt; TEAM = fresh; normalizeTeam(); rememberTeam(); syncWorkspace();
+    if ((UI.q || "").trim()) srRes = buildSearch(UI.q);
+    render();
+    if (!$("#searchResults").classList.contains("hidden")) renderSearch();
+  }
+  async function saveTeam(opts) {
+    setSaved("saving");
+    const payload = opts && opts.full ? clone(TEAM) : (() => { const o = clone(TEAM); delete o.workspaces; delete o.links; delete o.vendors; return o; })();
+    try { const j = await (await fetch("./api/save", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })).json(); if (!j.ok) throw 0; setSaved("saved"); rememberTeam(); toast("Team data saved ✓", "ok"); autoSyncMaybe(); }
+    catch (e) { setSaved("err"); toast("Save failed (read-only server?)", "err"); }
+  }
+  async function saveShared(part) {
+    setSaved("saving");
+    try {
+      const body = {}; if (!part || part.links) body.links = TEAM.links || []; if (!part || part.vendors) body.vendors = TEAM.vendors || [];
+      const j = await (await fetch("./api/shared", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+      if (!j.ok) throw 0; setSaved("saved"); rememberTeam(); toast("Shared list saved ✓", "ok"); autoSyncMaybe();
+    } catch (e) { setSaved("err"); toast("Shared save failed (server unavailable?)", "err"); }
+  }
+  const person = (id) => (TEAM.people || []).find((p) => p.id === id);
+  const tag = (id) => (TEAM.workTags || []).find((t) => t.id === id);
+  const wiOverdue = (w) => w.status !== "completed" && w.due && daysFromToday(w.due) < 0;
+
+  const accessCfg = () => (TEAM && TEAM.access) || { enabled: false, superadminPassword: "1234", ipMap: {} };
+  const isLoopback = (ip) => ip === "127.0.0.1" || ip === "::1" || ip === "localhost";
+  function descendants(id, acc) { acc = acc || new Set(); (TEAM.people || []).forEach((p) => { if (p.reportsTo === id && !acc.has(p.id)) { acc.add(p.id); descendants(p.id, acc); } }); return acc; }
+  // view scope: null = see everything; else a Set of allowed person ids
+  function viewScope() { const a = accessCfg(); if (isSuper || !a.enabled || a.viewAllReadOnly || !currentUserId) return null; const s = descendants(currentUserId); s.add(currentUserId); return s; }
+  function canEdit(personId) { const a = accessCfg(); if (!a.enabled || isSuper) return true; if (!currentUserId) return false; if (!personId) return true; const s = descendants(currentUserId); s.add(currentUserId); return s.has(personId); }
+  const vPeople = () => { const s = viewScope(); return (TEAM.people || []).filter((p) => !s || s.has(p.id)); };
+  const vItems = () => { const s = viewScope(); return (TEAM.workItems || []).filter((w) => !s || s.has(w.assignee)); };
+  // Hierarchy scoping for work: own items (My Workspace) and the logged-in person's whole sub-tree (Overview/KPIs).
+  function myTreeIds() { if (!currentUserId) return null; const s = descendants(currentUserId); s.add(currentUserId); return s; }
+  const myTreeItems = () => { const s = myTreeIds(); return (TEAM.workItems || []).filter((w) => !s || s.has(w.assignee)); };
+  const myOwnItems = () => (TEAM.workItems || []).filter((w) => !currentUserId || w.assignee === currentUserId);
+  const myReports = () => currentUserId ? (TEAM.people || []).filter((p) => p.reportsTo === currentUserId) : [];
+  const workspaceOwnerId = () => currentUserId;
+  const isGuest = () => accessCfg().enabled && !isSuper && !currentUserId;
+  // Org pie is rooted at the logged-in person, so each user sees their own reports to drill into.
+  function baseRootId() { const ppl = TEAM.people || []; if (currentUserId && person(currentUserId)) return currentUserId; const r = ppl.find((p) => !p.reportsTo) || ppl[0]; return r ? r.id : null; }
+
+  /* ===================================================================
+     UI STATE
+     =================================================================== */
+  const UI_KEY = "idbi.dash.ui.v1";
+  let UI;
+  function loadUI() {
+    try { UI = JSON.parse(localStorage.getItem(UI_KEY)) || {}; } catch (e) { UI = {}; }
+    UI.mode = UI.mode || "team"; UI.teamTab = UI.teamTab || "pendency"; UI.pTab = UI.pTab || "oracle-gl"; UI.subtab = UI.subtab || "firewall-crf";
+    UI.calMonth = UI.calMonth || todayISO().slice(0, 7); UI.theme = UI.theme || "idbi-light"; UI.accent = UI.accent || THEME_ACCENT["idbi-light"]; UI.q = "";
+    UI.tTag = UI.tTag || "all"; UI.tStatus = UI.tStatus || "all"; UI.tSort = UI.tSort || "due"; UI.dRole = UI.dRole || "all"; UI.dRep = UI.dRep || "all";
+    UI.orgFocus = UI.orgFocus || null; UI.sidebarHidden = !!UI.sidebarHidden;
+    UI.clockCollapsed = !!UI.clockCollapsed; UI.calCollapsed = !!UI.calCollapsed; UI.snapCollapsed = !!UI.snapCollapsed;
+  }
+  const saveUI = () => localStorage.setItem(UI_KEY, JSON.stringify(UI));
+  function setSaved(s) { if (s === "saving" || s === "saved") lastSaveTs = Date.now(); const el = $("#savedInd"); if (!el) return; el.className = "saved " + (s === "saving" ? "saving" : (s === "err" ? "err" : "saved-ok")); el.querySelector("span:last-child").textContent = s === "saving" ? "Saving…" : (s === "err" ? "Save failed" : "Saved"); }
+
+  /* ============================ CLOCK ============================ */
+  function buildClock() {
+    const svg = $("#clock"); let t = "";
+    for (let i = 0; i < 60; i++) { const a = (i * 6) * Math.PI / 180, major = i % 5 === 0, r1 = major ? 78 : 82, r2 = 88; t += `<line class="tick ${major ? "major" : ""}" x1="${100 + r1 * Math.sin(a)}" y1="${100 - r1 * Math.cos(a)}" x2="${100 + r2 * Math.sin(a)}" y2="${100 - r2 * Math.cos(a)}"/>`; }
+    svg.innerHTML = `<circle class="face" cx="100" cy="100" r="92"/>${t}<line id="hH" class="hand-h" x1="100" y1="100" x2="100" y2="54"/><line id="hM" class="hand-m" x1="100" y1="100" x2="100" y2="36"/><line id="hS" class="hand-s" x1="100" y1="108" x2="100" y2="28"/><circle class="pin" cx="100" cy="100" r="5"/><circle class="pin-c" cx="100" cy="100" r="2"/>`;
+    tickClock(); setInterval(tickClock, 1000);
+  }
+  function tickClock() {
+    const now = new Date(), s = now.getSeconds(), m = now.getMinutes(), h = now.getHours();
+    const set = (id, deg) => { const el = $("#" + id); if (el) el.setAttribute("transform", `rotate(${deg} 100 100)`); };
+    set("hS", s * 6); set("hM", m * 6 + s * 0.1); set("hH", (h % 12) * 30 + m * 0.5);
+    const t = $("#digiT"), d = $("#digiD");
+    if (t) t.textContent = now.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    if (d) d.textContent = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  }
+
+  /* ============================ CALENDAR ============================ */
+  function renderCalendar() {
+    const [y, mo] = UI.calMonth.split("-").map(Number);
+    const startDow = new Date(y, mo - 1, 1).getDay(), daysInMonth = new Date(y, mo, 0).getDate(), prevDays = new Date(y, mo - 1, 0).getDate(), tIso = todayISO();
+    let cells = ""; DOW.forEach((d) => (cells += `<div class="cal-dow">${d[0]}</div>`));
+    for (let i = 0; i < 42; i++) {
+      let dayNum, cls = "cal-cell", iso, out = false;
+      if (i < startDow) { dayNum = prevDays - startDow + 1 + i; out = true; const pm = mo - 1 < 1 ? 12 : mo - 1, py = mo - 1 < 1 ? y - 1 : y; iso = `${py}-${String(pm).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`; }
+      else if (i >= startDow + daysInMonth) { dayNum = i - startDow - daysInMonth + 1; out = true; const nm = mo + 1 > 12 ? 1 : mo + 1, ny = mo + 1 > 12 ? y + 1 : y; iso = `${ny}-${String(nm).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`; }
+      else { dayNum = i - startDow + 1; iso = `${y}-${String(mo).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`; }
+      if (out) cls += " out";
+      if (parseISO(iso).getDay() === 0) cls += " sun";
+      if (iso === tIso) cls += " today";
+      const hol = window.HOLIDAY_BY_DATE[iso]; if (hol) cls += " holiday has-tip";
+      cells += `<div class="${cls}" ${hol ? `title="${esc(hol.name)}" data-action="cal-day" data-iso="${iso}"` : ""}>${dayNum}</div>`;
+    }
+    $("#calBody").innerHTML = cells; $("#calLabel").textContent = `${MONTHS[mo - 1]} ${y}`;
+  }
+  function calShift(delta) { let [y, mo] = UI.calMonth.split("-").map(Number); mo += delta; if (mo < 1) { mo = 12; y--; } if (mo > 12) { mo = 1; y++; } UI.calMonth = `${y}-${String(mo).padStart(2, "0")}`; saveUI(); renderCalendar(); }
+  function renderNextHoliday() {
+    const t = todayISO(); const next = window.MH_HOLIDAYS_2026.filter((h) => h.date >= t).sort((a, b) => a.date.localeCompare(b.date))[0];
+    const el = $("#nextHol"); if (!next) { el.classList.add("hidden"); return; } el.classList.remove("hidden");
+    const d = daysFromToday(next.date);
+    el.innerHTML = `<span class="nh-ico">🎉</span><div><div><b>${esc(next.name)}</b></div><div class="faint" style="font-size:11px">${fmtDate(next.date)}</div></div><span class="nh-d">${d === 0 ? "Today" : "in " + d + "d"}</span>`;
+  }
+
+  /* ============================ THEME ============================ */
+  function applyTheme() { document.documentElement.setAttribute("data-theme", UI.theme); document.documentElement.style.setProperty("--accent", UI.accent); const sel = $("#themeSel"); if (sel) sel.value = UI.theme; $$(".sw").forEach((s) => s.classList.toggle("active", s.dataset.c === UI.accent)); }
+  function applySidebar() { const app = $(".app"); if (app) app.classList.toggle("sidebar-collapsed", !!UI.sidebarHidden); const b = $("#sidebarToggle"); if (b) { b.classList.toggle("active", !UI.sidebarHidden); b.title = UI.sidebarHidden ? "Show the clock & calendar sidebar" : "Hide the clock & calendar sidebar"; } }
+  function toggleSidebar() { UI.sidebarHidden = !UI.sidebarHidden; saveUI(); applySidebar(); }
+  function applyPanels() {
+    const cw = $("#clockWrap"); if (cw) cw.classList.toggle("collapsed", !!UI.clockCollapsed);
+    const cv = $("#calWrap"); if (cv) cv.classList.toggle("collapsed", !!UI.calCollapsed);
+    const ct = $('[data-action="toggle-clock"]'); if (ct) { ct.classList.toggle("rot", !!UI.clockCollapsed); ct.title = UI.clockCollapsed ? "Expand the clock" : "Collapse the clock"; }
+    const cl = $('[data-action="toggle-cal"]'); if (cl) { cl.classList.toggle("rot", !!UI.calCollapsed); cl.title = UI.calCollapsed ? "Expand the calendar" : "Collapse the calendar"; }
+  }
+
+  /* ===================================================================
+     RENDER SHELL
+     =================================================================== */
+  function renderSidebarStats() {
+    let a, b, c, al, bl, cl, team = UI.mode === "team" && TEAM;
+    if (team) { const items = myTreeItems(); a = items.filter((w) => w.status !== "completed").length; al = "Open"; b = items.filter(wiOverdue).length; bl = "Overdue"; c = items.length; cl = "Items"; }
+    else if (PD) { a = PD.requests.filter(reqOpen).length; al = "Open"; b = PD.requests.filter(reqOverdue).length; bl = "Overdue"; c = PD.tasks.filter((t) => !t.done).length; cl = "Tasks"; }
+    else { a = 0; al = "Open"; b = 0; bl = "Overdue"; c = 0; cl = "Tasks"; }
+    const clk = (k) => team ? `data-action="kpi" data-k="${k}"` : "";
+    $("#sideStats").innerHTML =
+      `<div class="ss ${team ? "clickable" : ""}" ${clk("open")}><b>${a}</b><span>${al}</span></div>
+       <div class="ss ${team ? "clickable" : ""}" ${clk("overdue")} style="color:${b ? "var(--bad)" : "inherit"}"><b>${b}</b><span>${bl}</span></div>
+       <div class="ss ${team ? "clickable" : ""}" ${clk("all")}><b>${c}</b><span>${cl}</span></div>`;
+  }
+
+  function renderAccess() {
+    const a = accessCfg(); const me = currentUserId ? person(currentUserId) : null; const host = isLoopback(MY_IP);
+    const who = viewAs ? (me ? me.name : "?") : (isSuper ? (host ? "Superadmin · this PC" : "Superadmin") : (me ? me.name : "Guest"));
+    const dot = viewAs ? "ok" : (isSuper ? "su" : (me ? "ok" : "guest"));
+    let html = `<div class="acc-who"><span class="acc-dot ${dot}"></span>You: <b>${esc(who)}</b>${viewAs ? ' <span class="faint">(view-as)</span>' : ""}</div>`;
+    html += `<div class="faint" style="font-size:10.5px;margin:2px 0 7px">IP ${esc(MY_IP || "—")}${a.enabled ? "" : " · access off"}</div>`;
+    if (realSuper) {
+      const opts = `<option value="">— View as: Myself (admin) —</option>` + (TEAM.people || []).map((p) => `<option value="${p.id}" ${viewAs === p.id ? "selected" : ""}>👁 ${esc(p.name)}</option>`).join("");
+      html += `<select class="select" data-action="viewas" style="width:100%;margin-bottom:6px">${opts}</select>`;
+      if (viewAs) html += `<button class="btn btn-ghost btn-sm" data-action="their-welcome" style="width:100%;margin-bottom:6px">▶ See their welcome screen</button><button class="btn btn-sm" data-action="exit-viewas" style="width:100%;margin-bottom:6px">↩ Exit view-as</button>`;
+      html += `<div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-action="settings" style="flex:1">⚙ Settings</button>${host ? `<button class="btn btn-ghost btn-sm" data-action="start-chooser" title="Switch between Superadmin and a person for today">🔄 Switch role</button>` : `<button class="btn btn-ghost btn-sm" data-action="logout-super">Logout</button>`}</div>`;
+    } else if (isSuper) {
+      html += `<div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" data-action="settings" style="flex:1">⚙ Settings</button><button class="btn btn-ghost btn-sm" data-action="logout-super">Logout</button></div>`;
+    } else {
+      html += `<button class="btn btn-ghost btn-sm" data-action="login-super" style="width:100%">🔐 Login as Superadmin</button>`;
+    }
+    $("#accessBox").innerHTML = html;
+  }
+
+  function renderNav() {
+    if (UI.mode === "personal" && PD) {
+      const tabs = PD.projects.map((p) => ({ id: p.id, name: p.name, icon: p.icon })).concat([{ id: "projects", name: "Projects", icon: "🚀" }, { id: "tasks", name: "Tasks", icon: "✅" }]).concat((PD.trackers || []).map((t) => ({ id: "tk:" + t.id, name: t.name, icon: t.icon || "📋" })));
+      let html = `<button class="pill back" data-action="back-team"><span>‹</span><span>Team</span></button>`;
+      html += tabs.map((t) => { let b = ""; if (pProj(t.id)) { const n = PD.requests.filter((r) => r.project === t.id && reqOverdue(r)).length; if (n) b = `<span class="pill-badge">${n}</span>`; } return `<button class="pill ${UI.pTab === t.id ? "active" : ""}" data-action="ptab" data-tab="${t.id}"><span>${t.icon}</span><span>${esc(t.name)}</span>${b}</button>`; }).join("");
+      if (!viewAs) html += `<button class="pill" data-action="new-ptab" title="Create a project tab"><span>＋</span><span>Project tab</span></button><button class="pill" data-action="new-tracker" title="Create a custom tracker"><span>＋</span><span>Tracker</span></button>`;
+      $("#nav").innerHTML = html;
+    } else if (UI.mode === "personal") {
+      $("#nav").innerHTML = `<button class="pill back" data-action="back-team"><span>‹</span><span>Team</span></button>`;
+    } else {
+      const tabs = [{ id: "overview", name: "Overview", icon: "🏠" }, { id: "pendency", name: "My Workspace", icon: "🗂️" }, { id: "directory", name: "Team Directory", icon: "👥" }, { id: "org", name: "Org Chart", icon: "🏢" }, { id: "links", name: "Links", icon: "🔗" }, { id: "vendors", name: "Tech Contacts", icon: "🛠️" }];
+      $("#nav").innerHTML = tabs.map((t) => { let b = ""; if (t.id === "pendency" && TEAM) { const n = vItems().filter(wiOverdue).length; if (n) b = `<span class="pill-badge">${n}</span>`; } return `<button class="pill ${UI.teamTab === t.id ? "active" : ""}" data-action="tab" data-tab="${t.id}"><span>${t.icon}</span><span>${esc(t.name)}</span>${b}</button>`; }).join("");
+    }
+  }
+
+  function render() {
+    // Rebuild the search index on every render so newly added/edited links, contacts & items are immediately findable.
+    if ((UI.q || "").trim()) { srRes = buildSearch(UI.q); if (!$("#searchResults").classList.contains("hidden")) renderSearch(); }
+    applyTheme(); renderNav(); renderSidebarStats(); renderNextHoliday(); renderAccess();
+    const ownerEl = $("#ownerName"); if (ownerEl) ownerEl.textContent = workspaceOwnerId() ? workspaceOwnerName() : "Guest";
+    const personal = UI.mode === "personal";
+    const showEdit = !personal && canEdit() && !viewAs;
+    if (!showEdit) teamEdit = false;
+    $("#editTeamBtn").classList.toggle("hidden", !showEdit);
+    if (showEdit) { $("#editTeamBtn").textContent = teamEdit ? "✓ Editing" : "✎ Edit"; $("#editTeamBtn").classList.toggle("btn-ghost", !teamEdit); }
+
+    const ann = (accessCfg().announcement || "").trim();
+    const annHtml = ann ? `<div class="announce"><span class="a-ico">📢</span><div>${esc(ann)}</div></div>` : "";
+    const vab = viewAs ? `<div class="banner warn">👁 Viewing as <b>${esc((person(viewAs) || {}).name || "")}</b> — read-only preview of what they see. <button class="btn btn-sm" data-action="exit-viewas">Exit view-as</button></div>` : "";
+    $("#addBtn").classList.toggle("hidden", personal && (!PD || viewAs));
+    if (personal) {
+      if (!workspaceOwnerId() || !PD) {
+        $("#tbTitle").textContent = "Workspace";
+        $("#tbSub").textContent = "Not mapped to a person";
+        $("#subnav").classList.add("hidden");
+        $("#content").innerHTML = annHtml + vab + `<div class="empty glass"><div class="e-ico">🪪</div><p>Ask your admin to map this PC to your name (⚙ Settings) to get your own workspace.</p></div>`;
+        return;
+      }
+      ensurePersonalTab();
+      const pt = pProj(UI.pTab);
+      const tk = (UI.pTab || "").indexOf("tk:") === 0 ? (PD.trackers || []).find((t) => "tk:" + t.id === UI.pTab) : null;
+      const ownerName = workspaceOwnerName();
+      $("#tbTitle").textContent = ownerName + " · " + (pt ? pt.name : tk ? tk.name : (UI.pTab === "projects" ? "Project Tracker" : "My Tasks"));
+      $("#tbSub").textContent = pt ? (PD.reqTypes || []).map((t) => t.name).join(" · ") || "No request types yet" : tk ? "Custom tracker" : (UI.pTab === "projects" ? "UAT / Go-Live status" : "Quick to-dos");
+      $("#subnav").classList.toggle("hidden", !pt); if (pt) renderSubnav();
+      $("#content").innerHTML = annHtml + vab + (pt ? viewProject(pt) : tk ? viewTracker(tk) : (UI.pTab === "projects" ? viewProjects() : viewTasks()));
+    } else {
+      $("#subnav").classList.add("hidden");
+      if (!TEAM) { $("#content").innerHTML = `<div class="empty"><div class="e-ico">⏳</div><p>Loading team data…</p></div>`; return; }
+      const titles = { overview: "Team Overview", pendency: "My Workspace", directory: "Team Directory", org: "Org Chart", links: "Important Links", vendors: "Tech / Vendor Contacts" };
+      const me = currentUserId ? person(currentUserId) : null;
+      const scopeNote = viewScope() ? ` · showing ${me ? esc(me.name) + " + reports" : "your scope"}` : "";
+      const subs = { overview: "All pending work" + scopeNote, pendency: "Your work, demands, approvals & to-dos", directory: "Click your highlighted card to open your workspace", org: "MIS reporting structure", links: "Shared team URLs + your private list", vendors: "Shared tech contacts + your private list" };
+      $("#tbTitle").textContent = titles[UI.teamTab] || "Team Overview"; $("#tbSub").textContent = subs[UI.teamTab] || "";
+      const v = { overview: viewTeamOverview, pendency: viewPendency, directory: viewDirectory, org: viewOrg, links: viewLinks, vendors: viewVendors };
+      $("#content").innerHTML = annHtml + vab + (isGuest() ? `<div class="banner warn">👋 Your IP (${esc(MY_IP || "unknown")}) isn't mapped to a person, so this is read-only. Ask the admin to map it, or 🔐 login as Superadmin.</div>` : "") + (v[UI.teamTab] || viewTeamOverview)();
+    }
+  }
+  function renderSubnav() { const types = PD ? PD.reqTypes || [] : []; $("#subnav").innerHTML = types.map((t) => { const n = PD.requests.filter((r) => r.project === UI.pTab && r.type === t.id && reqOpen(r)).length; return `<button class="subpill ${UI.subtab === t.id ? "active" : ""}" data-action="sub" data-sub="${t.id}">${esc(t.name)}<span class="c">${n}</span></button>`; }).join("") + (!viewAs ? `<button class="subpill" data-action="manage-types">⚙ Request types</button>` : ""); }
+
+  /* ===================================================================
+     TEAM VIEWS
+     =================================================================== */
+  function viewTeamOverview() {
+    const items = myTreeItems();
+    const open = items.filter((w) => w.status !== "completed"), over = items.filter(wiOverdue);
+    const end = new Date(parseISO(todayISO())); end.setDate(end.getDate() + 7);
+    const week = open.filter((w) => w.due && parseISO(w.due) >= parseISO(todayISO()) && parseISO(w.due) <= end);
+    const kpis = [
+      { ic: "🗂️", c: "var(--info)", v: items.length, l: "Total Items", k: "all" },
+      { ic: "📨", c: "var(--warn)", v: open.length, l: "Active Pending", k: "open" },
+      { ic: "✅", c: "var(--ok)", v: items.filter((w) => w.status === "completed").length, l: "Completed", k: "completed" },
+      { ic: "⏰", c: "var(--bad)", v: over.length, l: "Overdue", k: "overdue" },
+      { ic: "📅", c: "var(--purple)", v: week.length, l: "Due ≤ 7 days", k: "week" },
+    ];
+    const kpiHtml = kpis.map((k) => `<div class="kpi glass clickable" data-action="kpi" data-k="${k.k}"><div class="k-top"><span class="k-ico" style="background:color-mix(in srgb,${k.c} 20%,transparent);color:${k.c}">${k.ic}</span>${k.l}</div><div class="k-val">${k.v}</div></div>`).join("");
+    // ---- organisation / topic visualisation: big pie (left) + small breakdown pies (right) ----
+    const ppl = TEAM.people || [], kids = (idx) => ppl.filter((p) => p.reportsTo === idx);
+    const br = baseRootId();
+    if (lastOverviewRoot !== br) { UI.orgFocus = br; lastOverviewRoot = br; }   // reset focus when the logged-in / viewed person changes
+    if (!UI.orgFocus || !person(UI.orgFocus)) UI.orgFocus = br;
+    { const allowed = descendants(br); allowed.add(br); if (!allowed.has(UI.orgFocus)) UI.orgFocus = br; }   // keep the pie within the logged-in person's reporting tree
+    const focus = person(UI.orgFocus);
+    let pie = "";
+    if (focus) {
+      const subOpenCount = (id) => { const s = descendants(id); s.add(id); return (TEAM.workItems || []).filter((w) => s.has(w.assignee) && w.status !== "completed").length; };
+      const subItems = (id) => { const s = descendants(id); s.add(id); return (TEAM.workItems || []).filter((w) => s.has(w.assignee)); };
+      const topicSlices = (its) => (TEAM.workTags || []).map((t, i) => { const n = its.filter((w) => w.tag === t.id).length; return { id: t.id, name: t.name, short: t.name, color: t.color || PALETTE[i % PALETTE.length], weight: n, count: n, action: "pie-tag" }; }).filter((s) => s.weight > 0);
+      const statusSlices = (its) => [
+        { id: "overdue", name: "Overdue", color: "#ff375f", count: its.filter(wiOverdue).length },
+        { id: "pending", name: "Pending", color: "#f59e0b", count: its.filter((w) => w.status === "pending" && !wiOverdue(w)).length },
+        { id: "in-progress", name: "In Progress", color: "#0a84ff", count: its.filter((w) => w.status === "in-progress" && !wiOverdue(w)).length },
+        { id: "completed", name: "Completed", color: "#30d158", count: its.filter((w) => w.status === "completed").length },
+      ].map((s) => ({ id: s.id, name: s.name, short: s.name, color: s.color, weight: s.count, count: s.count, action: "" })).filter((s) => s.weight > 0);
+      const fname = focus.name.split(" ")[0];
+      let chain = [], cur = focus; while (cur) { chain.unshift(cur); if (cur.id === br) break; cur = person(cur.reportsTo); }
+      const crumbs = chain.map((c) => `<span class="crumb" data-action="org-focus" data-id="${c.id}">${esc(c.name.split(" ")[0])}</span>`).join('<span class="crumb-sep">›</span>');
+      const smallPie = (title, slices, badge) => `<div class="mini-pie"><div class="mini-pie-h">${esc(title)}${badge != null ? ` <span class="c">${badge}</span>` : ""}</div>${slices.length ? donut(slices, "", "", true) : `<div class="mini-empty">none</div>`}</div>`;
+      const children = kids(UI.orgFocus);
+      let leftTitle, leftSlices, leftCenter, rightTitle, smalls;
+      if (children.length) {   // reporting authority → people-wise
+        leftTitle = `${esc(fname)}'s team — open work by person`;
+        leftSlices = children.map((c, i) => ({ id: c.id, name: c.name, short: c.name.split(" ")[0], color: PALETTE[i % PALETTE.length], weight: Math.max(subOpenCount(c.id), 0), count: subOpenCount(c.id), action: "org-slice" }));
+        leftCenter = String(children.reduce((a, c) => a + subOpenCount(c.id), 0));
+        rightTitle = "Each report — open by topic";
+        smalls = children.map((c) => smallPie(c.name.split(" ")[0], topicSlices(subItems(c.id).filter((w) => w.status !== "completed")), subOpenCount(c.id))).join("");
+      } else {                 // individual → topic-wise
+        const works = (TEAM.workItems || []).filter((w) => w.assignee === UI.orgFocus);
+        const ownOpen = works.filter((w) => w.status !== "completed");
+        leftTitle = `${esc(fname)}'s work — open by topic`;
+        leftSlices = topicSlices(ownOpen);
+        leftCenter = String(ownOpen.length);
+        rightTitle = "Each topic — by status";
+        smalls = leftSlices.map((s) => smallPie(s.name, statusSlices(works.filter((w) => w.tag === s.id)), works.filter((w) => w.tag === s.id && w.status !== "completed").length)).join("");
+      }
+      const leftLegend = leftSlices.map((s) => `<button class="pleg" data-action="${s.action}" data-id="${s.id}"><i style="background:${s.color}"></i><span class="pleg-n">${esc(s.name)}</span><b>${s.count}</b></button>`).join("");
+      const leftBody = leftSlices.length ? `<div class="pie-mini">${donut(leftSlices, leftCenter, "open", true)}</div><div class="pleg-wrap">${leftLegend}</div>` : `<div class="empty"><div class="e-ico">🥧</div><p>Nothing open for ${esc(fname)} right now.</p></div>`;
+      pie = `<div class="ov-head"><h3 style="margin:0">🥧 Organisation</h3><div class="breadcrumb" style="margin:0">${crumbs}</div><span class="faint small">click a slice or legend to drill in · centre to go up</span></div>
+        <div class="ov-grid"><div class="card glass ov-pie"><div class="pie-h">${leftTitle}</div>${leftBody}</div><div class="card glass ov-pie"><div class="pie-h">${rightTitle}</div><div class="mini-grid">${smalls || `<div class="mini-empty" style="padding:18px">No breakdown to show.</div>`}</div></div></div>`;
+    }
+    const up = open.filter((w) => w.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 5).map((w) => { const t = tag(w.tag), a = person(w.assignee), cd = cdInfo(w.due, false); return `<div class="mi clickable" data-action="view-wi" data-id="${w.id}"><span class="mi-dot" style="background:${t ? t.color : "#888"}"></span><div><div class="mi-m">${esc(w.title)}</div><div class="mi-s">${t ? esc(t.name) : ""}${a ? " · " + esc(a.name) : ""}</div></div><div class="mi-r"><span class="cd ${cd.cls}">${cd.label}</span></div></div>`; }).join("") || `<div class="empty small">Nothing pending 🎉</div>`;
+    return `<div class="kpis">${kpiHtml}</div>${pie}<div class="card glass" style="margin-top:14px"><h3>⏳ Upcoming &amp; overdue</h3><div class="mlist">${up}</div></div>`;
+  }
+
+  const canOwnWorkItem = (w) => !viewAs && currentUserId && (!w || w.assignee === currentUserId);
+  const canEditWorkItem = (w) => !viewAs && ((teamEdit && canEdit(w && w.assignee)) || canOwnWorkItem(w));
+  const canAddWorkItem = () => !viewAs && ((teamEdit && canEdit()) || !!currentUserId);
+  // Workspace tabs (Circle GL, ASP+DSP …) are shared team-wide. Superadmin can always add/delete for everyone.
+  const canManageTags = () => !viewAs && (isSuper || canAddWorkItem());
+  // Workload snapshot: two clean pies for My Workspace — open per topic + breakdown by status.
+  function pendencyPies(items) {
+    if (!items.length) return "";
+    const open = items.filter((w) => w.status !== "completed");
+    const totalOpen = open.length;
+    if (UI.snapCollapsed) return `<div class="card glass snap collapsed"><div class="snap-head"><b>📊 Workload snapshot</b><span class="faint small">${totalOpen} open · ${items.length} total</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="toggle-snap">Show ▾</button></div></div>`;
+    const tagSlices = (TEAM.workTags || []).map((t, i) => { const n = open.filter((w) => w.tag === t.id).length; return { id: t.id, name: t.name, short: t.name, sub: "", color: t.color || PALETTE[i % PALETTE.length], weight: n, count: n, action: "pie-tag" }; }).filter((s) => s.weight > 0);
+    const overdue = items.filter(wiOverdue).length;
+    const stStats = [
+      { id: "overdue", name: "Overdue", color: "#ff375f", count: overdue },
+      { id: "pending", name: "Pending", color: "#f59e0b", count: items.filter((w) => w.status === "pending" && !wiOverdue(w)).length },
+      { id: "in-progress", name: "In Progress", color: "#0a84ff", count: items.filter((w) => w.status === "in-progress" && !wiOverdue(w)).length },
+      { id: "completed", name: "Completed", color: "#30d158", count: items.filter((w) => w.status === "completed").length },
+    ];
+    const stSlices = stStats.map((s) => ({ id: s.id, name: s.name, short: s.name, sub: "", color: s.color, weight: s.count, count: s.count, action: "pie-status" })).filter((s) => s.weight > 0);
+    const legend = (slices, action) => slices.map((s) => `<button class="pleg" data-action="${action}" data-id="${s.id}"><i style="background:${s.color}"></i><span class="pleg-n">${esc(s.name)}</span><b>${s.count}</b></button>`).join("");
+    const col = (title, slices, center, sub, action) => slices.length
+      ? `<div class="pie-col"><div class="pie-h">${title}</div><div class="pie-mini">${donut(slices, center, sub, true)}</div><div class="pleg-wrap">${legend(slices, action)}</div></div>`
+      : `<div class="pie-col"><div class="pie-h">${title}</div><div class="empty small" style="padding:24px">Nothing to show</div></div>`;
+    return `<div class="card glass snap"><div class="snap-head"><b>📊 Workload snapshot</b><span class="faint small">${totalOpen} open · ${items.length} total</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="toggle-snap">Hide ▴</button></div><div class="pend-pies">${col("Open items by topic", tagSlices, String(totalOpen), "open", "pie-tag")}${col("By status", stSlices, String(items.length), "items", "pie-status")}</div></div>`;
+  }
+  function viewPendency() {
+    const items0 = myOwnItems();   // your tab shows only your own work items; reports are seen via the Overview pie
+    const canTags = canManageTags();
+    const editing = canTags && tagEditMode;
+    const openOf = (tid) => items0.filter((w) => (tid === "all" || w.tag === tid) && w.status !== "completed").length;
+    const cnt = (n) => `<span class="c${n ? "" : " z"}">${n}</span>`;
+    const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All ${cnt(openOf("all"))}</button>` + (TEAM.workTags || []).map((t) => {
+      const sel = UI.tTag === t.id ? "active" : "";
+      const del = editing ? `<button class="subpill tag-del" data-action="del-tag" data-id="${t.id}" title="Delete the “${esc(t.name)}” tab">✕</button>` : "";
+      return `<button class="subpill ${sel}" data-action="ttag" data-v="${t.id}" title="${openOf(t.id)} open item(s)"><span class="tdot" style="background:${t.color}"></span>${esc(t.name)} ${cnt(openOf(t.id))}</button>${del}`;
+    }).join("") + (editing ? `<button class="subpill" data-action="manage-tags" title="Add or rename workspace tabs">＋ Tab</button>` : "");
+    const q = (UI.q || "").trim().toLowerCase(); let items = items0.slice();
+    if (UI.tTag !== "all") items = items.filter((w) => w.tag === UI.tTag);
+    if (UI.tStatus === "open") items = items.filter((w) => w.status !== "completed");
+    else if (UI.tStatus === "overdue") items = items.filter(wiOverdue);
+    else if (UI.tStatus !== "all") items = items.filter((w) => w.status === UI.tStatus);
+    if (q) items = items.filter((w) => { const t = tag(w.tag), a = person(w.assignee); return [w.title, w.notes, t && t.name, a && a.name].some((v) => (v || "").toLowerCase().includes(q)); });
+    const ord = { high: 0, medium: 1, low: 2 };
+    items.sort((a, b) => UI.tSort === "priority" ? (ord[a.priority] ?? 3) - (ord[b.priority] ?? 3) : (a.due || "9999").localeCompare(b.due || "9999"));
+    const head = `<div class="tr head" style="grid-template-columns:2.4fr 1.1fr 1fr 1.1fr .9fr 78px"><div>Item</div><div>Assignee</div><div>Due</div><div>Status</div><div>Priority</div><div></div></div>`;
+    const rows = items.map((w) => { const t = tag(w.tag), a = person(w.assignee), cd = cdInfo(w.due, w.status === "completed"); const st = wiOverdue(w) ? "overdue" : w.status; const stc = st === "overdue" ? "b-rejected" : ST_CLASS[w.status]; const stl = st === "overdue" ? "Overdue" : ST_LABEL[w.status]; const ed = canEditWorkItem(w);
+      return `<div class="tr row" style="grid-template-columns:2.4fr 1.1fr 1fr 1.1fr .9fr 78px"><div class="cell-title"><b>${esc(w.title)}</b><div class="ref">${t ? `<span class="badge" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">${esc(t.name)}</span>` : ""}</div></div><div class="small">${a ? esc(a.name) : "—"}</div><div><div class="small">${fmtDate(w.due)}</div><span class="cd ${cd.cls}">${cd.label}</span></div><div><span class="badge ${stc}">${stl}</span></div><div><span class="prio ${w.priority || "low"}">${(w.priority || "low").toUpperCase()}</span></div><div class="cell-actions"><button class="icon-btn sq" data-action="view-wi" data-id="${w.id}" title="Details">↗</button>${ed ? `<button class="icon-btn sq" data-action="edit-wi" data-id="${w.id}">✎</button><button class="icon-btn sq" data-action="del-wi" data-id="${w.id}">🗑</button>` : ""}</div></div>`;
+    }).join("");
+    const list = items.length ? `<div class="tbl">${head}${rows}</div>` : `<div class="empty glass"><div class="e-ico">🗂️</div><p>No items match your filters.</p></div>`;
+    const dummyCount = (TEAM.workItems || []).filter(isDummyItem).length;
+    const canClear = !viewAs && (isSuper || (teamEdit && canEdit()));
+    const reps = myReports();
+    const repHint = reps.length ? `<div class="banner info" style="margin-bottom:12px">👥 This tab shows <b>your own</b> work. Your ${reps.length} report${reps.length === 1 ? "" : "s"} (${reps.map((p) => esc(p.name.split(" ")[0])).join(", ")}) appear as a pie in <b><span class="lk" data-action="tab" data-tab="overview" style="color:var(--accent);cursor:pointer;text-decoration:underline">Team Overview</span></b> — click a slice to drill into their items.</div>` : "";
+    return repHint + `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canClear && dummyCount ? `<button class="btn btn-ghost btn-sm" data-action="clear-dummies" title="Remove all dummy items added to fill the dashboard">🧹 Clear dummy (${dummyCount})</button>` : ""}${canTags ? `<button class="btn btn-ghost btn-sm ${editing ? "" : "btn-ghost"}" data-action="toggle-tagedit" title="Show/hide the ✕ delete buttons on the topic tabs">${editing ? "✓ Done editing tabs" : "⚙ Edit tabs"}</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
+      ${pendencyPies(items0)}
+      <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div class="subnav" style="padding:0">${chips}</div></div>
+      <div class="toolbar" style="display:flex;gap:8px;margin-bottom:14px"><select class="select" data-action="tstatus">${["all", "open", "pending", "in-progress", "completed", "overdue"].map((s) => `<option value="${s}" ${UI.tStatus === s ? "selected" : ""}>${s === "all" ? "All statuses" : (s === "open" ? "Open (all pending)" : (s === "overdue" ? "Overdue" : ST_LABEL[s]))}</option>`).join("")}</select><select class="select" data-action="tsort"><option value="due" ${UI.tSort === "due" ? "selected" : ""}>Sort: Due date</option><option value="priority" ${UI.tSort === "priority" ? "selected" : ""}>Sort: Priority</option></select></div>${list}`;
+  }
+
+  function viewDirectory() {
+    const roles = ["all", "DGM", "AGM", "Manager", "AM"];
+    const roleChips = roles.map((r) => `<button class="subpill ${UI.dRole === r ? "active" : ""}" data-action="drole" data-v="${r}">${r === "all" ? "All roles" : r}</button>`).join("");
+    const base = (TEAM.people || []);
+    const heads = base.filter((p) => p.roleLevel === "DGM" || p.roleLevel === "AGM");
+    const repOpts = `<option value="all">Reports to: anyone</option>` + heads.map((m) => `<option value="${m.id}" ${UI.dRep === m.id ? "selected" : ""}>Reports to ${esc(m.name)}</option>`).join("");
+    const q = (UI.q || "").trim().toLowerCase(); let ppl = base.slice();
+    if (UI.dRole !== "all") ppl = ppl.filter((p) => p.roleLevel === UI.dRole);
+    if (UI.dRep !== "all") ppl = ppl.filter((p) => p.reportsTo === UI.dRep);
+    if (q) ppl = ppl.filter((p) => [p.name, p.role, p.email, p.location].some((v) => (v || "").toLowerCase().includes(q)));
+    const rank = { DGM: 0, AGM: 1, Manager: 2, AM: 3 };
+    ppl.sort((a, b) => (rank[a.roleLevel] ?? 9) - (rank[b.roleLevel] ?? 9) || a.name.localeCompare(b.name));
+    const owner = workspaceOwnerId();
+    const cards = ppl.map((p) => { const mgr = person(p.reportsTo), me = p.id === owner, ed = teamEdit && canEdit(p.id);
+      return `<div class="person ${me ? "me" : ""}" ${me ? `data-action="open-workspace"` : ""}><div class="p-head"><div class="p-av" style="background:${avatar(p.name)}">${initials(p.name)}</div><div><div class="p-name">${esc(p.name)} <span class="lvl lvl-${p.roleLevel}">${esc(p.roleLevel)}</span></div><div class="p-role">${esc(p.role)}</div></div></div><div><div class="contact-line"><span class="ci">✉️</span><a href="mailto:${esc(p.email)}">${esc(p.email)}</a><span class="copy" data-action="copy" data-copy="${esc(p.email)}" title="Copy">⧉</span></div>${p.mobile ? `<div class="contact-line"><span class="ci">📱</span><a href="tel:${esc(p.mobile)}">${esc(p.mobile)}</a><span class="copy" data-action="copy" data-copy="${esc(p.mobile)}">⧉</span></div>` : ""}${p.pax ? `<div class="contact-line"><span class="ci">☎️</span><span>PAX ${esc(p.pax)}</span></div>` : ""}${p.location ? `<div class="contact-line"><span class="ci">📍</span><span>${esc(p.location)}</span></div>` : ""}</div>${mgr ? `<div class="reports-to">Reports to <b>${esc(mgr.name)}</b> · ${esc(mgr.roleLevel)}</div>` : `<div class="reports-to">Department head</div>`}${me ? `<div class="cell-actions"><button class="btn btn-sm me-cta" data-action="open-workspace">Open my workspace →</button>${!viewAs ? `<button class="btn btn-ghost btn-sm" data-action="edit-person" data-id="${p.id}">✎ Edit my details</button>` : ""}</div>` : (ed ? `<div class="cell-actions"><button class="btn btn-ghost btn-sm" data-action="edit-person" data-id="${p.id}">Edit</button><button class="btn btn-danger btn-sm" data-action="del-person" data-id="${p.id}">✕</button></div>` : "")}</div>`;
+    }).join("") || `<div class="empty"><div class="e-ico">👥</div><p>No people match.</p></div>`;
+    return `<div class="section-head"><h2>Team Directory</h2><span class="faint">${ppl.length} of ${base.length}</span><span class="spacer"></span>${teamEdit && canEdit(null) ? `<button class="btn" data-action="add-person">＋ Add person</button>` : ""}</div><div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px"><div class="subnav" style="padding:0">${roleChips}</div><span class="spacer"></span><select class="select" data-action="drep">${repOpts}</select></div><div class="people-grid">${cards}</div>`;
+  }
+
+  function subtreeWorkCount(id) { const s = descendants(id); s.add(id); return (TEAM.workItems || []).filter((w) => s.has(w.assignee)).length; }
+  // generic donut: slices = [{id,name,short,sub,color,weight,count,action}]
+  function donut(slices, centerName, centerSub, hideLabels) {
+    const data = slices.map((s) => ({ s: s, w: Math.max(s.weight, 0) }));
+    let total = data.reduce((a, d) => a + d.w, 0); if (total === 0) { data.forEach((d) => (d.w = 1)); total = data.length || 1; }
+    const R = 130, r = 72, cx = 160, cy = 160; let ang = -Math.PI / 2, paths = "";
+    if (!data.length) paths += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="var(--glass-2)"/>`;
+    data.forEach((d, i) => {
+      const frac = d.w / total, a2 = ang + frac * 2 * Math.PI, large = (a2 - ang) > Math.PI ? 1 : 0;
+      const x1 = cx + R * Math.cos(ang), y1 = cy + R * Math.sin(ang), x2 = cx + R * Math.cos(a2), y2 = cy + R * Math.sin(a2);
+      const xi2 = cx + r * Math.cos(a2), yi2 = cy + r * Math.sin(a2), xi1 = cx + r * Math.cos(ang), yi1 = cy + r * Math.sin(ang);
+      const cnt = (d.s.count !== "" && d.s.count != null) ? " — " + d.s.count + " works" : "";
+      paths += `<path class="slice" data-action="${d.s.action}" data-id="${d.s.id}" d="M${x1} ${y1} A${R} ${R} 0 ${large} 1 ${x2} ${y2} L${xi2} ${yi2} A${r} ${r} 0 ${large} 0 ${xi1} ${yi1} Z" fill="${d.s.color}"><title>${esc(d.s.name)}${cnt}</title></path>`;
+      const mid = (ang + a2) / 2, lr = (R + r) / 2;
+      if (frac > 0.07 && !hideLabels) paths += `<text class="slice-lbl" x="${cx + lr * Math.cos(mid)}" y="${cy + lr * Math.sin(mid)}" text-anchor="middle" dy=".35em">${esc((d.s.short || d.s.name).slice(0, 12))}</text>`;
+      if (frac > 0.06 && hideLabels) paths += `<text class="slice-val" x="${cx + lr * Math.cos(mid)}" y="${cy + lr * Math.sin(mid)}" text-anchor="middle" dy=".35em">${d.s.count}</text>`;
+      ang = a2;
+    });
+    paths += `<circle class="donut-center" cx="${cx}" cy="${cy}" r="${r - 4}" data-action="org-up"><title>Up one level</title></circle>`;
+    paths += `<text class="dc-name" x="${cx}" y="${cy - 4}" text-anchor="middle">${esc(centerName || "")}</text><text class="dc-sub" x="${cx}" y="${cy + 13}" text-anchor="middle">${esc(centerSub || "")}</text>`;
+    return `<svg viewBox="0 0 320 320" class="donut">${paths}</svg>`;
+  }
+  function viewOrg() {
+    const ppl = TEAM.people || []; const kids = (id) => ppl.filter((p) => p.reportsTo === id);
+    const heads = ppl.filter((p) => !p.reportsTo);
+    const editing = teamEdit && isSuper;
+    const card = (p) => `<div class="org-card"><div class="oc-name">${esc(p.name)} <span class="lvl lvl-${p.roleLevel}">${esc(p.roleLevel)}</span></div><div class="oc-role">${esc(p.role)}</div><div class="oc-mail"><a href="mailto:${esc(p.email)}">${esc(p.email)}</a></div>${p.mobile ? `<div class="oc-sub">📱 ${esc(p.mobile)}</div>` : ""}${p.location ? `<div class="oc-sub">📍 ${esc(p.location)}</div>` : ""}${editing ? `<div class="cell-actions" style="justify-content:center;margin-top:9px"><button class="icon-btn sq" data-action="edit-person" data-id="${p.id}">✎</button><button class="icon-btn sq" data-action="del-person" data-id="${p.id}">🗑</button></div>` : ""}</div>`;
+    let html = `<div class="section-head"><h2>Org Chart</h2><span class="faint">MIS reporting structure — who reports to whom</span><span class="spacer"></span>${editing ? `<button class="btn btn-sm" data-action="add-person">＋ Add person</button>` : (isSuper ? `<span class="faint small">Turn on ✎ Edit to change structure</span>` : "")}</div><div class="card glass"><div class="org">`;
+    heads.forEach((head) => {
+      const agms = kids(head.id);
+      html += `<div class="org-tier">Deputy General Manager</div>${card(head)}`;
+      if (agms.length) {
+        html += `<div class="org-connector"></div><div class="org-tier">Assistant General Managers</div><div class="org-row">`;
+        agms.forEach((agm) => { const r = kids(agm.id); html += `<div class="org-branch">${card(agm)}${r.length ? `<div class="org-connector"></div><div class="org-hline"></div><div class="org-reports">${r.map(card).join("")}</div>` : ""}</div>`; });
+        html += `</div>`;
+      }
+    });
+    return html + `</div></div>`;
+  }
+
+  /* ============================ LINKS ============================ */
+  const mineReady = () => !!workspaceOwnerId() && !!PD;
+  const linkList = (scope) => scope === "mine" ? (PD.links = PD.links || []) : (TEAM.links = TEAM.links || []);
+  const vendorList = (scope) => scope === "mine" ? (PD.vendors = PD.vendors || []) : (TEAM.vendors = TEAM.vendors || []);
+  function saveScopedList(scope, kind) { scope === "mine" ? savePersonal() : saveShared(kind === "links" ? { links: true } : { vendors: true }); }
+  function linkCards(rows, scope) {
+    const canE = !viewAs && (scope === "shared" || mineReady());
+    return rows.map((l) => `<div class="person"><div class="p-head"><div class="p-av" style="background:${avatar(l.title)}">🔗</div><div><div class="p-name">${esc(l.title)} ${l.category ? `<span class="tag-pill">${esc(l.category)}</span>` : ""}</div><div class="p-role">${esc(l.desc || "")}</div></div></div><div class="contact-line"><span class="ci">🌐</span><a class="link-url" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a><span class="copy" data-action="copy" data-copy="${esc(l.url)}" title="Copy">⧉</span></div>${canE ? `<div class="cell-actions"><button class="btn btn-ghost btn-sm" data-action="edit-link" data-scope="${scope}" data-id="${l.id}">Edit</button><button class="btn btn-danger btn-sm" data-action="del-link" data-scope="${scope}" data-id="${l.id}">×</button></div>` : ""}</div>`).join("") || `<div class="empty"><div class="e-ico">🔗</div><p>No links yet.</p>${canE ? `<button class="btn" data-action="add-link" data-scope="${scope}">＋ Add link</button>` : ""}</div>`;
+  }
+  function viewLinks() {
+    const q = (UI.q || "").trim().toLowerCase();
+    const filt = (rows) => { rows = (rows || []).slice(); return q ? rows.filter((l) => [l.title, l.url, l.desc, l.category].some((v) => (v || "").toLowerCase().includes(q))) : rows; };
+    const shared = filt(TEAM.links), mine = mineReady() ? filt(PD.links) : [];
+    const section = (label, sub, rows, scope) => `<div class="section-head link-section-head"><h2>${label}</h2><span class="faint">${sub} · ${rows.length} link${rows.length === 1 ? "" : "s"}</span><span class="spacer"></span>${!viewAs && (scope === "shared" || mineReady()) ? `<button class="btn" data-action="add-link" data-scope="${scope}">＋ Add link</button>` : ""}</div><div class="people-grid list-section">${linkCards(rows, scope)}</div>`;
+    return section("Shared — team", "Visible to everyone", shared, "shared") + (mineReady() ? section("Mine — " + esc(workspaceOwnerName()), "Private workspace list", mine, "mine") : `<div class="banner warn">A personal links list appears once this PC is mapped to your name in ⚙ Settings.</div>`);
+  }
+  /* ============================ VENDOR / TECH CONTACTS ============================ */
+  function vendorCards(rows, scope) {
+    const canE = !viewAs && (scope === "shared" || mineReady());
+    return rows.map((v) => `<div class="person"><div class="p-head"><div class="p-av" style="background:${avatar(v.org || v.name)}">${esc((v.org || "?").slice(0, 2).toUpperCase())}</div><div><div class="p-name">${esc(v.name)} ${v.org ? `<span class="vendor-org">${esc(v.org)}</span>` : ""}</div><div class="p-role">${esc(v.role || "")}${v.area ? " · " + esc(v.area) : ""}</div></div></div><div>${v.email ? `<div class="contact-line"><span class="ci">✉️</span><a href="mailto:${esc(v.email)}">${esc(v.email)}</a><span class="copy" data-action="copy" data-copy="${esc(v.email)}">⧉</span></div>` : ""}${v.phone ? `<div class="contact-line"><span class="ci">📞</span><a href="tel:${esc(v.phone)}">${esc(v.phone)}</a></div>` : ""}</div>${v.notes ? `<div class="reports-to">${esc(v.notes)}</div>` : ""}${canE ? `<div class="cell-actions"><button class="btn btn-ghost btn-sm" data-action="edit-vendor" data-scope="${scope}" data-id="${v.id}">Edit</button><button class="btn btn-danger btn-sm" data-action="del-vendor" data-scope="${scope}" data-id="${v.id}">×</button></div>` : ""}</div>`).join("") || `<div class="empty"><div class="e-ico">🛠️</div><p>No contacts yet.</p>${canE ? `<button class="btn" data-action="add-vendor" data-scope="${scope}">＋ Add contact</button>` : ""}</div>`;
+  }
+  function viewVendors() {
+    const q = (UI.q || "").trim().toLowerCase();
+    const filt = (rows) => { rows = (rows || []).slice(); return q ? rows.filter((v) => [v.name, v.org, v.role, v.area, v.email, v.phone, v.notes].some((x) => (x || "").toLowerCase().includes(q))) : rows; };
+    const shared = filt(TEAM.vendors), mine = mineReady() ? filt(PD.vendors) : [];
+    const section = (label, sub, rows, scope) => `<div class="section-head link-section-head"><h2>${label}</h2><span class="faint">${sub} · ${rows.length} contact${rows.length === 1 ? "" : "s"}</span><span class="spacer"></span>${!viewAs && (scope === "shared" || mineReady()) ? `<button class="btn" data-action="add-vendor" data-scope="${scope}">＋ Add contact</button>` : ""}</div><div class="people-grid list-section">${vendorCards(rows, scope)}</div>`;
+    return section("Shared — team", "Visible to everyone", shared, "shared") + (mineReady() ? section("Mine — " + esc(workspaceOwnerName()), "Private workspace list", mine, "mine") : `<div class="banner warn">A personal contacts list appears once this PC is mapped to your name in ⚙ Settings.</div>`);
+  }
+
+  /* ===================================================================
+     PERSONAL VIEWS
+     =================================================================== */
+  const canEditPersonal = () => !viewAs && !!workspaceOwnerId() && !!PD;
+  function viewProject(proj) {
+    const q = (UI.q || "").trim().toLowerCase(); let rows = PD.requests.filter((r) => r.project === proj.id && r.type === UI.subtab);
+    if (q) rows = rows.filter((r) => [r.title, r.ref, r.owner, r.approver, r.notes].some((v) => (v || "").toLowerCase().includes(q)));
+    rows.sort((a, b) => (reqOpen(a) ? 0 : 1) - (reqOpen(b) ? 0 : 1) || (a.deadline || "9999").localeCompare(b.deadline || "9999"));
+    const type = pType(UI.subtab);
+    const head = `<div class="tr head" style="grid-template-columns:2.4fr 1fr 1fr 1.1fr 1.1fr 90px"><div>Request</div><div>Raised</div><div>Deadline</div><div>Status</div><div>Pending</div><div></div></div>`;
+    const acts = canEditPersonal();
+    const body = rows.map((r) => { const cd = cdInfo(r.deadline, r.status === "completed"), pend = daysBetween(r.raised, r.completedOn || todayISO()); return `<div class="tr row" style="grid-template-columns:2.4fr 1fr 1fr 1.1fr 1.1fr 90px"><div class="cell-title"><b>${esc(r.title)}</b><div class="ref">${esc(r.ref || "—")}${r.owner ? " · " + esc(r.owner) : ""}</div></div><div class="small">${fmtDate(r.raised)}</div><div><div class="small">${fmtDate(r.deadline)}</div><span class="cd ${cd.cls}">${cd.label}</span></div><div><span class="badge ${REQ_CLASS[r.status]}">${REQ_LABEL[r.status]}</span></div><div class="small">${pend} day${pend === 1 ? "" : "s"}</div><div class="cell-actions">${acts ? `<button class="icon-btn sq" data-action="edit-req" data-id="${r.id}">✎</button><button class="icon-btn sq" data-action="del-req" data-id="${r.id}">🗑</button>` : ""}</div></div>`; }).join("");
+    const list = rows.length ? `<div class="tbl">${head}${body}</div>` : `<div class="empty glass"><div class="e-ico">🗂️</div><p>${type ? `No ${esc(type.name)} entries yet.` : "No request types yet."}</p>${acts ? (type ? `<button class="btn" data-action="add-req">＋ Add ${esc(type.name)}</button>` : `<button class="btn" data-action="manage-types">⚙ Request types</button>`) : ""}</div>`;
+    return `<div class="section-head"><h2>${esc(type ? type.name : "Requests")} <span class="faint">— ${esc(proj.name)}</span></h2><span class="spacer"></span><button class="btn-ghost btn btn-sm" data-action="export-req">⬇ CSV</button>${acts ? `<button class="btn btn-ghost btn-sm" data-action="edit-ptab" data-id="${proj.id}">✎ Tab</button>${PD.projects.length > 1 ? `<button class="btn btn-danger btn-sm" data-action="del-ptab" data-id="${proj.id}">Delete tab</button>` : ""}<button class="btn btn-ghost btn-sm" data-action="manage-types">⚙ Types</button>${type ? `<button class="btn" data-action="add-req">＋ Add ${esc(type.name)}</button>` : ""}` : ""}</div>${list}`;
+  }
+  function viewProjects() {
+    const q = (UI.q || "").trim().toLowerCase(); let rows = PD.trackedProjects.slice();
+    if (q) rows = rows.filter((p) => [p.name, p.owner, p.status, p.notes].some((v) => (v || "").toLowerCase().includes(q)));
+    const head = `<div class="tr head" style="grid-template-columns:2.2fr 1fr 1fr 1.4fr 90px"><div>Project</div><div>UAT date</div><div>Go-Live</div><div>Status</div><div></div></div>`;
+    const acts = canEditPersonal();
+    const body = rows.map((p) => { const gl = p.goLive ? (p.status === "Live" || p.status === "Closed" ? `<span class="cd ok">Live</span>` : (daysFromToday(p.goLive) < 0 ? `<span class="cd over">Go-Live passed ${Math.abs(daysFromToday(p.goLive))}d</span>` : `<span class="cd ${daysFromToday(p.goLive) <= 7 ? "soon" : "ok"}">Go-Live in ${daysFromToday(p.goLive)}d</span>`)) : ""; return `<div class="tr row" style="grid-template-columns:2.2fr 1fr 1fr 1.4fr 90px"><div class="cell-title"><b>${esc(p.name)}</b><div class="ref">${esc(p.owner || "")}</div><div class="pbar" style="margin-top:8px;max-width:220px"><i style="width:${p.progress || 0}%;background:var(--accent)"></i></div></div><div><div class="faint small">UAT</div>${fmtDate(p.uat)}</div><div><div class="faint small">Go-Live</div>${fmtDate(p.goLive)}</div><div><span class="badge ${PROJ_CLASS[p.status] || "b-dev"}">${esc(p.status)}</span><div style="margin-top:6px">${gl}</div></div><div class="cell-actions">${acts ? `<button class="icon-btn sq" data-action="edit-proj" data-id="${p.id}">✎</button><button class="icon-btn sq" data-action="del-proj" data-id="${p.id}">🗑</button>` : ""}</div></div>`; }).join("");
+    const list = rows.length ? `<div class="tbl">${head}${body}</div>` : `<div class="empty glass"><div class="e-ico">🚀</div><p>No projects tracked yet.</p>${acts ? `<button class="btn" data-action="add-proj">＋ Add project</button>` : ""}</div>`;
+    return `<div class="section-head"><h2>Project Tracker</h2><span class="faint">UAT · Go-Live · status</span><span class="spacer"></span>${acts ? `<button class="btn" data-action="add-proj">＋ Add project</button>` : ""}</div>${list}`;
+  }
+  function viewTasks() {
+    const q = (UI.q || "").trim().toLowerCase(); let rows = PD.tasks.slice();
+    if (q) rows = rows.filter((t) => (t.title || "").toLowerCase().includes(q));
+    rows.sort((a, b) => (a.done - b.done) || ((a.due || "9999").localeCompare(b.due || "9999")));
+    const acts = canEditPersonal();
+    const items = rows.map((t) => { const p = pProj(t.project), cd = t.due && !t.done ? (daysFromToday(t.due) < 0 ? `<span class="cd over">Overdue ${Math.abs(daysFromToday(t.due))}d</span>` : `<span class="cd ${daysFromToday(t.due) <= 2 ? "soon" : "ok"}">${fmtDate(t.due)}</span>`) : ""; return `<div class="tr row" style="grid-template-columns:34px 2.6fr 1fr 1.1fr 70px;${t.done ? "opacity:.55" : ""}"><div><input type="checkbox" data-action="toggle-task" data-id="${t.id}" ${t.done ? "checked" : ""} ${acts ? "" : "disabled"} style="width:18px;height:18px;cursor:pointer"></div><div class="cell-title"><b style="${t.done ? "text-decoration:line-through" : ""}">${esc(t.title)}</b></div><div>${p ? `<span class="badge" style="background:color-mix(in srgb,${p.color} 18%,transparent);color:${p.color}">${esc(p.name)}</span>` : `<span class="faint small">General</span>`}</div><div><span class="prio ${t.priority}">${t.priority.toUpperCase()}</span> ${cd}</div><div class="cell-actions">${acts ? `<button class="icon-btn sq" data-action="edit-task" data-id="${t.id}">✎</button><button class="icon-btn sq" data-action="del-task" data-id="${t.id}">🗑</button>` : ""}</div></div>`; }).join("");
+    const list = rows.length ? `<div class="tbl">${items}</div>` : `<div class="empty glass"><div class="e-ico">✅</div><p>No tasks yet.</p>${acts ? `<button class="btn" data-action="add-task">＋ Add task</button>` : ""}</div>`;
+    return `<div class="section-head"><h2>My Tasks</h2><span class="faint">${PD.tasks.filter((t) => !t.done).length} open</span><span class="spacer"></span>${acts ? `<button class="btn" data-action="add-task">＋ Add task</button>` : ""}</div>${list}`;
+  }
+
+  /* ============================ CUSTOM TRACKERS ============================ */
+  const slug = (s) => ((s || "col").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "col");
+  const findTk = (id) => (PD.trackers || []).find((t) => t.id === id);
+  function tkCellHtml(col, val) {
+    if (col.type === "date") { if (!val) return "—"; const cd = /due|deadline/i.test(col.id + col.label) ? cdInfo(val, false) : null; return fmtDate(val) + (cd ? ` <span class="cd ${cd.cls}">${cd.label}</span>` : ""); }
+    if (col.type === "select") return val ? `<span class="badge ${/(overdue|reject)/i.test(val) ? "b-rejected" : /pending/i.test(val) ? "b-pending" : /progress/i.test(val) ? "b-progress" : "b-completed"}">${esc(val)}</span>` : "—";
+    return esc(val || "—");
+  }
+  function viewTracker(tk) {
+    const q = (UI.q || "").trim().toLowerCase();
+    let rows = (tk.rows || []).slice();
+    if (q) rows = rows.filter((r) => Object.values(r.values || {}).some((v) => String(v || "").toLowerCase().includes(q)));
+    const acts = canEditPersonal();
+    const gtc = tk.columns.map(() => "minmax(120px,1fr)").join(" ") + " 84px";
+    const head = `<div class="tk-row head" style="grid-template-columns:${gtc}">${tk.columns.map((c) => `<div>${esc(c.label)}</div>`).join("")}<div></div></div>`;
+    const body = rows.map((r) => `<div class="tk-row body" style="grid-template-columns:${gtc}">${tk.columns.map((c) => `<div class="tk-cell">${tkCellHtml(c, (r.values || {})[c.id])}</div>`).join("")}<div class="cell-actions">${acts ? `<button class="icon-btn sq" data-action="edit-tkrow" data-tk="${tk.id}" data-id="${r.id}">✎</button><button class="icon-btn sq" data-action="del-tkrow" data-tk="${tk.id}" data-id="${r.id}">🗑</button>` : ""}</div></div>`).join("");
+    const list = rows.length ? `<div class="tk-table">${head}${body}</div>` : `<div class="empty glass"><div class="e-ico">${tk.icon || "📋"}</div><p>No entries yet in ${esc(tk.name)}.</p>${acts ? `<button class="btn" data-action="add-tkrow" data-tk="${tk.id}">＋ Add entry</button>` : ""}</div>`;
+    return `<div class="section-head"><h2>${tk.icon || "📋"} ${esc(tk.name)}</h2><span class="faint">${(tk.rows || []).length} entries</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-tk" data-tk="${tk.id}">⬇ CSV</button>${acts ? `<button class="btn btn-ghost btn-sm" data-action="edit-tracker" data-tk="${tk.id}">⚙ Columns</button><button class="btn btn-danger btn-sm" data-action="del-tracker" data-tk="${tk.id}">Delete</button><button class="btn" data-action="add-tkrow" data-tk="${tk.id}">＋ Add entry</button>` : ""}</div>${list}`;
+  }
+
+  /* ============================ MODAL ============================ */
+  function openModal(title, body, onSave) {
+    $("#modalCard").innerHTML = `<div class="modal-head"><h3>${esc(title)}</h3><button class="modal-close" data-action="modal-x">×</button></div><div class="modal-body">${body}</div><div class="modal-foot"><button class="btn btn-ghost" data-action="modal-x">Cancel</button><button class="btn" data-action="modal-save">Save</button></div>`;
+    $("#modal").classList.remove("hidden"); $("#modal")._save = onSave; const f = $("#modalCard input, #modalCard select, #modalCard textarea"); if (f) f.focus();
+  }
+  function openInfo(title, body, editFn) {
+    $("#modalCard").innerHTML = `<div class="modal-head"><h3>${esc(title)}</h3><button class="modal-close" data-action="modal-x">×</button></div><div class="modal-body">${body}</div><div class="modal-foot"><button class="btn btn-ghost" data-action="modal-x">Close</button>${editFn ? `<button class="btn" data-action="info-edit">Edit</button>` : ""}</div>`;
+    $("#modal").classList.remove("hidden"); $("#modal")._infoEdit = editFn || null;
+  }
+  const closeModal = () => $("#modal").classList.add("hidden");
+
+  const updaterName = () => { const p = currentUserId ? person(currentUserId) : null; return p ? p.name : (isSuper ? "Superadmin" : "You"); };
+  const fmtDateTime = (iso) => { if (!iso) return ""; const d = new Date(iso); return isNaN(d) ? esc(iso) : d.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
+  function sortedUpdates(w) { return (Array.isArray(w.updates) ? w.updates.slice() : []).sort((a, b) => (b.at || "").localeCompare(a.at || "")); }
+  function viewWorkItem(id) {
+    const w = (TEAM.workItems || []).find((x) => x.id === id); if (!w) return;
+    const t = tag(w.tag), a = person(w.assignee), cd = cdInfo(w.due, w.status === "completed");
+    const st = wiOverdue(w) ? "Overdue" : ST_LABEL[w.status];
+    const canEd = canEditWorkItem(w);
+    const row = (l, v) => `<div class="info-row"><span class="il">${l}</span><span>${v}</span></div>`;
+    const useTrail = w.trail || (w.updates && w.updates.length);
+    const ups = sortedUpdates(w);
+    let trail = "";
+    if (ups.length || w.notes) {
+      trail = `<div class="upd-list">` + ups.map((u, i) => `<div class="upd${i === 0 ? " latest" : ""}"><span class="upd-dot"></span><div class="upd-b"><div class="upd-meta">${i === 0 ? `<span class="upd-now">Current status</span> · ` : ""}${esc(fmtDateTime(u.at))}${u.by ? " · " + esc(u.by) : ""}${canEd ? ` <span class="upd-del" data-action="wi-del-update" data-id="${w.id}" data-i="${i}" title="Delete this update">✕</span>` : ""}</div><div class="upd-text">${esc(u.text)}</div></div></div>`).join("") +
+        (w.notes ? `<div class="upd base"><span class="upd-dot"></span><div class="upd-b"><div class="upd-meta">Initial note</div><div class="upd-text">${esc(w.notes)}</div></div></div>` : "") + `</div>`;
+    } else {
+      trail = `<div class="faint small" style="margin:2px 0 4px">No updates yet${canEd ? " — add the first one below." : "."}</div>`;
+    }
+    const addBox = canEd ? `<div class="upd-add"><textarea id="wi-update-text" rows="2" placeholder="Add a status update… e.g. “Approval received from ISG on 05.06.2026”"></textarea><button class="btn btn-sm" data-action="wi-add-update" data-id="${w.id}">＋ Add update</button></div>` : "";
+    const body = row("Title", `<b>${esc(w.title)}</b>`) +
+      row("Work tag", t ? `<span class="badge" style="background:color-mix(in srgb,${t.color} 18%,transparent);color:${t.color}">${esc(t.name)}</span>` : "—") +
+      row("Assigned to", a ? `<b>${esc(a.name)}</b> · ${esc(a.role)}<br><a href="mailto:${esc(a.email)}">${esc(a.email)}</a>${a.mobile ? " · 📱 " + esc(a.mobile) : ""}` : "Unassigned") +
+      row("Status", `<span class="badge ${wiOverdue(w) ? "b-rejected" : ST_CLASS[w.status]}">${st}</span>`) +
+      row("Priority", `<span class="prio ${w.priority || "low"}">${(w.priority || "low").toUpperCase()}</span>`) +
+      row("Due", `${fmtDate(w.due)} <span class="cd ${cd.cls}">${cd.label}</span>`) +
+      (useTrail
+        ? `<div class="upd-section"><div class="il" style="margin:12px 0 8px">📝 Update trail <span class="faint small">(latest first)</span></div>${trail}${addBox}</div>`
+        : (w.notes ? row("Notes", esc(w.notes)) : ""));
+    openInfo("Work item", body, canEd ? () => { closeModal(); editWorkItem(id, !teamEdit); } : null);
+  }
+
+  /* ---- personal modals ---- */
+  function editRequest(id) {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    if (!PD.projects.length || !PD.reqTypes.length) { toast("Add a project tab and request type first", "err"); return; }
+    const firstProj = (PD.projects[0] || {}).id || "", firstType = (PD.reqTypes[0] || {}).id || "";
+    const r = id ? PD.requests.find((x) => x.id === id) : { id: "", project: pProj(UI.pTab) ? UI.pTab : firstProj, type: pType(UI.subtab) ? UI.subtab : firstType, ref: "", title: "", raised: todayISO(), deadline: "", status: "raised", owner: PD.meta.owner, approver: "", notes: "" };
+    const opt = (arr, val) => arr.map((o) => `<option value="${o.v}" ${o.v === val ? "selected" : ""}>${esc(o.l)}</option>`).join("");
+    openModal(id ? "Edit request" : "Add request", `<div class="field"><label>Title / description</label><input id="f-title" value="${esc(r.title)}" placeholder="What is being requested?"></div><div class="row2"><div class="field"><label>Reference no.</label><input id="f-ref" value="${esc(r.ref || "")}" placeholder="e.g. CRF-2026-0142"></div><div class="field"><label>Status</label><select id="f-status">${opt(REQ_STATUS.map((s) => ({ v: s, l: REQ_LABEL[s] })), r.status)}</select></div></div><div class="row2"><div class="field"><label>Project</label><select id="f-proj">${opt(PD.projects.map((p) => ({ v: p.id, l: p.name })), r.project)}</select></div><div class="field"><label>Type</label><select id="f-type">${opt(PD.reqTypes.map((t) => ({ v: t.id, l: t.name })), r.type)}</select></div></div><div class="row2"><div class="field"><label>Raised on</label><input id="f-raised" type="date" value="${esc(r.raised || "")}"></div><div class="field"><label>Deadline</label><input id="f-deadline" type="date" value="${esc(r.deadline || "")}"></div></div><div class="row2"><div class="field"><label>Owner</label><input id="f-owner" value="${esc(r.owner || "")}"></div><div class="field"><label>Approver</label><input id="f-approver" value="${esc(r.approver || "")}"></div></div><div class="field"><label>Notes</label><textarea id="f-notes">${esc(r.notes || "")}</textarea></div>`,
+      () => { const title = $("#f-title").value.trim(); if (!title) { toast("Title required", "err"); return false; } const status = $("#f-status").value; const o = { id: r.id || uid("r"), project: $("#f-proj").value, type: $("#f-type").value, ref: $("#f-ref").value.trim(), title, raised: $("#f-raised").value || todayISO(), deadline: $("#f-deadline").value, status, owner: $("#f-owner").value.trim(), approver: $("#f-approver").value.trim(), notes: $("#f-notes").value.trim() }; if (status === "completed") o.completedOn = r.completedOn || todayISO(); if (id) PD.requests[PD.requests.findIndex((x) => x.id === id)] = o; else PD.requests.push(o); savePersonal(); render(); toast("Saved", "ok"); return true; });
+  }
+  function editProj(id) {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    const p = id ? PD.trackedProjects.find((x) => x.id === id) : { id: "", name: "", status: "Requirement", uat: "", goLive: "", owner: PD.meta.owner, progress: 0, notes: "" };
+    openModal(id ? "Edit project" : "Add project", `<div class="field"><label>Project name</label><input id="f-name" value="${esc(p.name)}"></div><div class="row2"><div class="field"><label>Status</label><select id="f-status">${PROJ_STATUS.map((s) => `<option value="${s}" ${s === p.status ? "selected" : ""}>${s}</option>`).join("")}</select></div><div class="field"><label>Progress %</label><input id="f-progress" type="number" min="0" max="100" value="${p.progress || 0}"></div></div><div class="row2"><div class="field"><label>UAT date</label><input id="f-uat" type="date" value="${esc(p.uat || "")}"></div><div class="field"><label>Go-Live date</label><input id="f-golive" type="date" value="${esc(p.goLive || "")}"></div></div><div class="field"><label>Owner</label><input id="f-owner" value="${esc(p.owner || "")}"></div><div class="field"><label>Notes</label><textarea id="f-notes">${esc(p.notes || "")}</textarea></div>`,
+      () => { const name = $("#f-name").value.trim(); if (!name) { toast("Name required", "err"); return false; } const o = { id: p.id || uid("tp"), name, status: $("#f-status").value, progress: Math.max(0, Math.min(100, +$("#f-progress").value || 0)), uat: $("#f-uat").value, goLive: $("#f-golive").value, owner: $("#f-owner").value.trim(), notes: $("#f-notes").value.trim() }; if (id) PD.trackedProjects[PD.trackedProjects.findIndex((x) => x.id === id)] = o; else PD.trackedProjects.push(o); savePersonal(); render(); toast("Saved", "ok"); return true; });
+  }
+  function editTask(id) {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    const t = id ? PD.tasks.find((x) => x.id === id) : { id: "", title: "", project: "", priority: "medium", due: "", done: false };
+    openModal(id ? "Edit task" : "Add task", `<div class="field"><label>Task</label><input id="f-title" value="${esc(t.title)}" placeholder="What do you need to do?"></div><div class="row2"><div class="field"><label>Project</label><select id="f-proj"><option value="">General</option>${PD.projects.map((p) => `<option value="${p.id}" ${p.id === t.project ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div><div class="field"><label>Priority</label><select id="f-prio">${["high", "medium", "low"].map((s) => `<option value="${s}" ${s === t.priority ? "selected" : ""}>${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div></div><div class="field"><label>Due date</label><input id="f-due" type="date" value="${esc(t.due || "")}"></div>`,
+      () => { const title = $("#f-title").value.trim(); if (!title) { toast("Task required", "err"); return false; } const o = { id: t.id || uid("t"), title, project: $("#f-proj").value, priority: $("#f-prio").value, due: $("#f-due").value, done: t.done || false }; if (id) PD.tasks[PD.tasks.findIndex((x) => x.id === id)] = o; else PD.tasks.push(o); savePersonal(); render(); toast("Saved", "ok"); return true; });
+  }
+
+  function uniqueProjectId(name, oldId) {
+    if (oldId) return oldId;
+    const used = new Set((PD.projects || []).map((p) => p.id)); let base = slug(name || "project"), id = base, i = 2;
+    while (used.has(id)) id = base + "-" + i++;
+    return id;
+  }
+  function editProjectTab(id) {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    const p = id ? PD.projects.find((x) => x.id === id) : { id: "", name: "", icon: "🗂️", color: UI.accent || "#0a84ff" };
+    openModal(id ? "Edit project tab" : "Add project tab", `<div class="row2"><div class="field"><label>Name</label><input id="pt-name" value="${esc(p.name)}" placeholder="e.g. Oracle GL"></div><div class="field"><label>Icon</label><input id="pt-icon" value="${esc(p.icon || "🗂️")}" maxlength="3"></div></div><div class="field"><label>Colour</label><input id="pt-color" type="color" value="${esc(p.color || UI.accent || "#0a84ff")}"></div>`,
+      () => { const name = $("#pt-name").value.trim(); if (!name) { toast("Name required", "err"); return false; } const o = { id: uniqueProjectId(name, p.id), name, icon: $("#pt-icon").value.trim() || "🗂️", color: $("#pt-color").value || UI.accent || "#0a84ff" }; if (id) PD.projects[PD.projects.findIndex((x) => x.id === id)] = o; else { PD.projects.push(o); UI.pTab = o.id; } savePersonal(); render(); toast("Project tab saved", "ok"); return true; });
+  }
+  function delProjectTab(id) {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    if (!id || PD.projects.length <= 1) return;
+    if (!confirm("Delete this project tab? Existing request rows keep their stored project value in the backup, but the tab will be hidden.")) return;
+    PD.projects = PD.projects.filter((p) => p.id !== id);
+    if (UI.pTab === id) UI.pTab = (PD.projects[0] || {}).id || "projects";
+    savePersonal(); render(); toast("Project tab deleted");
+  }
+  function manageReqTypes() {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    const old = PD.reqTypes || [];
+    openModal("Manage request types", `<div class="field"><label>Request types, one per line</label><textarea id="rt-lines" style="min-height:160px">${esc(old.map((t) => t.name).join("\n"))}</textarea></div><p class="faint small">Renaming keeps existing rows attached by position. Removing a type hides rows with that old type until it is added back or restored.</p>`,
+      () => { const names = $("#rt-lines").value.split("\n").map((s) => s.trim()).filter(Boolean); if (!names.length) { toast("Add at least one request type", "err"); return false; } const used = new Set(); PD.reqTypes = names.map((name, i) => { let id = (old[i] && old[i].id) || slug(name); while (used.has(id)) id = slug(name) + "-" + (i + used.size); used.add(id); return { id, name }; }); if (!pType(UI.subtab)) UI.subtab = (PD.reqTypes[0] || {}).id || ""; savePersonal(); render(); toast("Request types saved", "ok"); return true; });
+  }
+
+  /* ---- custom tracker: row + schema ---- */
+  function editTrackerRow(tkId, rowId) {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    const tk = findTk(tkId); if (!tk) return;
+    const row = rowId ? tk.rows.find((r) => r.id === rowId) : { id: "", values: {} };
+    const fields = tk.columns.map((c) => { const v = (row.values || {})[c.id] || ""; if (c.type === "date") return `<div class="field"><label>${esc(c.label)}</label><input data-col="${c.id}" type="date" value="${esc(v)}"></div>`; if (c.type === "select") return `<div class="field"><label>${esc(c.label)}</label><select data-col="${c.id}"><option value="">—</option>${(c.options || []).map((o) => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></div>`; return `<div class="field"><label>${esc(c.label)}</label><input data-col="${c.id}" value="${esc(v)}"></div>`; }).join("");
+    openModal(rowId ? "Edit entry" : "Add entry — " + tk.name, fields, () => { const values = {}; $$("#modalCard [data-col]").forEach((el) => { values[el.dataset.col] = el.value; }); if (rowId) tk.rows[tk.rows.findIndex((r) => r.id === rowId)] = { id: rowId, values }; else tk.rows.push({ id: uid("rw"), values }); savePersonal(); render(); toast("Saved", "ok"); return true; });
+  }
+  function colsToText(cols) { return cols.map((c) => c.label + (c.type === "date" ? " | date" : c.type === "select" ? " | select: " + (c.options || []).join(", ") : "")).join("\n"); }
+  function parseCols(text, oldCols) {
+    return text.split("\n").map((s) => s.trim()).filter(Boolean).map((line, i) => {
+      const parts = line.split("|"); const label = parts[0].trim(); const tp = (parts[1] || "").trim().toLowerCase();
+      let type = "text", options;
+      if (tp.indexOf("date") === 0) type = "date";
+      else if (tp.indexOf("select") === 0) { type = "select"; options = (parts[1].split(":")[1] || "").split(",").map((o) => o.trim()).filter(Boolean); }
+      const id = (oldCols && oldCols[i]) ? oldCols[i].id : slug(label) + "-" + i;
+      const col = { id, label, type }; if (options) col.options = options; return col;
+    });
+  }
+  function editTracker(tkId) {
+    if (!canEditPersonal()) { toast("Exit view-as to make workspace changes", "err"); return; }
+    const tk = tkId ? findTk(tkId) : { id: "", name: "", icon: "📋", columns: [{ id: "title-0", label: "Title", type: "text" }], rows: [] };
+    openModal(tkId ? "Edit tracker" : "New tracker", `<div class="row2"><div class="field"><label>Name</label><input id="tk-name" value="${esc(tk.name)}" placeholder="e.g. Regulatory Returns"></div><div class="field"><label>Icon (emoji)</label><input id="tk-icon" value="${esc(tk.icon || "📋")}" maxlength="2"></div></div><div class="field"><label>Columns — one per line. Add <b>| date</b> or <b>| select: a, b, c</b> after a label.</label><textarea id="tk-cols" style="min-height:150px;font-family:ui-monospace,monospace">${esc(colsToText(tk.columns))}</textarea></div><p class="faint small">Keep column order when editing so existing entries stay matched.</p>`,
+      () => { const name = $("#tk-name").value.trim(); if (!name) { toast("Name required", "err"); return false; } const cols = parseCols($("#tk-cols").value, tkId ? tk.columns : null); if (!cols.length) { toast("Add at least one column", "err"); return false; } if (tkId) { tk.name = name; tk.icon = $("#tk-icon").value.trim() || "📋"; tk.columns = cols; } else { const nt = { id: slug(name) + "-" + Date.now().toString(36).slice(-3), name, icon: $("#tk-icon").value.trim() || "📋", columns: cols, rows: [] }; PD.trackers.push(nt); UI.pTab = "tk:" + nt.id; } savePersonal(); render(); toast("Tracker saved", "ok"); return true; });
+  }
+  function exportTrackerCsv(tkId) { const tk = findTk(tkId); if (!tk) return; const rows = [tk.columns.map((c) => c.label)]; (tk.rows || []).forEach((r) => rows.push(tk.columns.map((c) => (r.values || {})[c.id] || ""))); dl("﻿" + rows.map((r) => r.map((c) => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\r\n"), slug(tk.name) + ".csv", "text/csv"); toast("CSV downloaded", "ok"); }
+
+  /* ---- team modals ---- */
+  function editWorkItem(id, ownOnly) {
+    const w = id ? TEAM.workItems.find((x) => x.id === id) : { id: "", title: "", tag: (TEAM.workTags[0] || {}).id, assignee: currentUserId || "", status: "pending", priority: "medium", due: "", notes: "", trail: false };
+    const tagOpts = TEAM.workTags.map((t) => `<option value="${t.id}" ${t.id === w.tag ? "selected" : ""}>${esc(t.name)}</option>`).join("");
+    const assignable = ownOnly && currentUserId ? [person(currentUserId)].filter(Boolean) : vPeople(); // only people you can manage
+    const aOpts = (ownOnly ? "" : `<option value="">Unassigned</option>`) + assignable.map((p) => `<option value="${p.id}" ${p.id === w.assignee ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+    openModal(id ? "Edit work item" : "Add work item", `<div class="field"><label>Title</label><input id="f-title" value="${esc(w.title)}"></div><div class="row2"><div class="field"><label>Work tag</label><select id="f-tag">${tagOpts}</select></div><div class="field"><label>Assignee</label><select id="f-assignee">${aOpts}</select></div></div><div class="row2"><div class="field"><label>Status</label><select id="f-status">${STATUS.map((s) => `<option value="${s}" ${s === w.status ? "selected" : ""}>${ST_LABEL[s]}</option>`).join("")}</select></div><div class="field"><label>Priority</label><select id="f-prio">${["high", "medium", "low"].map((s) => `<option value="${s}" ${s === w.priority ? "selected" : ""}>${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div></div><div class="field"><label>Due date</label><input id="f-due" type="date" value="${esc(w.due || "")}"></div><div class="field"><label>${(w.trail || (w.updates && w.updates.length)) ? "Notes / initial entry" : "Notes"}</label><textarea id="f-notes">${esc(w.notes || "")}</textarea></div><div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f-trail" ${(w.trail || (w.updates && w.updates.length)) ? "checked" : ""} style="width:16px;height:16px"> 📝 Keep an <b>update trail</b> (timestamped status history) for this multi-step item</label></div>`,
+      () => { const title = $("#f-title").value.trim(); if (!title) { toast("Title required", "err"); return false; } const o = { id: w.id || uid("w"), title, tag: $("#f-tag").value, assignee: ownOnly ? currentUserId : $("#f-assignee").value, status: $("#f-status").value, priority: $("#f-prio").value, due: $("#f-due").value, notes: $("#f-notes").value.trim(), trail: $("#f-trail").checked }; if (w.updates && w.updates.length) o.updates = w.updates; if (id) TEAM.workItems[TEAM.workItems.findIndex((x) => x.id === id)] = o; else TEAM.workItems.push(o); render(); saveTeam(); return true; });
+  }
+  function wtRowHtml(name, color) {
+    const c = /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : PALETTE[0];
+    return `<div class="wt-row" style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input class="wt-name" value="${esc(name || "")}" placeholder="Tab name (e.g. Circle GL)" style="flex:1"><input class="wt-color" type="color" value="${esc(c)}" title="Tab colour" style="width:44px;flex:0 0 auto;padding:2px;height:34px"><button class="btn btn-danger btn-sm" data-action="wt-del-row" title="Delete this tab">✕</button></div>`;
+  }
+  const isDummyItem = (w) => (w && ((w.id || "").indexOf("dum-") === 0 || /\(dummy\)/i.test(w.title || "")));
+  function clearDummyItems() {
+    if (viewAs) { toast("Exit view-as to make changes", "err"); return; }
+    if (!(isSuper || (teamEdit && canEdit()))) { toast("Turn on “✎ Edit” (or log in as Superadmin) to clear dummy items", "err"); return; }
+    const dummies = (TEAM.workItems || []).filter(isDummyItem);
+    if (!dummies.length) { toast("No dummy items to clear", "ok"); return; }
+    if (!confirm("Remove all " + dummies.length + " dummy item" + (dummies.length === 1 ? "" : "s") + " for everyone? Your real items are kept.")) return;
+    TEAM.workItems = (TEAM.workItems || []).filter((w) => !isDummyItem(w));
+    render(); saveTeam(); toast("Removed " + dummies.length + " dummy item" + (dummies.length === 1 ? "" : "s"), "ok");
+  }
+  function manageWorkTags() {
+    if (viewAs) { toast("Exit view-as to make changes", "err"); return; }
+    if (!canManageTags()) { toast("Ask admin to map this PC (or log in as Superadmin) before managing tabs", "err"); return; }
+    const old = TEAM.workTags || [];
+    const rowsHtml = (old.length ? old : [{ name: "", color: PALETTE[0] }]).map((t, i) => wtRowHtml(t.name, t.color || PALETTE[i % PALETTE.length])).join("");
+    openModal("Manage My Workspace tabs", `<p class="faint small" style="margin:0 0 10px">Add, rename, recolour or delete the workspace tabs (Circle GL, ASP+DSP …). These are <b>shared with the whole team</b>${isSuper ? " — as Superadmin your changes apply for everyone" : ""}. Deleting a tab hides its chip; items already using it keep their stored tab until you re-tag them.</p><div id="wt-rows">${rowsHtml}</div><button class="btn btn-ghost btn-sm" data-action="wt-add-row" style="margin-top:4px">＋ Add tab</button>`,
+      () => {
+        const byName = {}; old.forEach((t) => { if (!(t.name in byName)) byName[t.name] = t.id; });
+        const entries = $$("#wt-rows .wt-row").map((r) => ({ name: ($(".wt-name", r).value || "").trim(), color: $(".wt-color", r).value || PALETTE[0] })).filter((e) => e.name);
+        if (!entries.length) { toast("Add at least one tab", "err"); return false; }
+        const used = new Set();
+        TEAM.workTags = entries.map((e, i) => {
+          let id = byName[e.name] || slug(e.name);
+          while (used.has(id)) id = slug(e.name) + "-" + (i + used.size);
+          used.add(id);
+          return { id, name: e.name, color: e.color };
+        });
+        if (UI.tTag !== "all" && !tag(UI.tTag)) UI.tTag = "all";
+        render(); saveTeam(); toast("Tabs saved", "ok"); return true;
+      });
+  }
+  function editPerson(id) {
+    const p = id ? person(id) : { id: "", name: "", salutation: "", roleLevel: "Manager", role: "Manager, MIS", email: "", mobile: "", pax: "", location: "", reportsTo: currentUserId || "" };
+    const lvlOpts = ["DGM", "AGM", "Manager", "AM"].map((l) => `<option value="${l}" ${l === p.roleLevel ? "selected" : ""}>${l}</option>`).join("");
+    const repOpts = `<option value="">— none —</option>` + TEAM.people.filter((x) => x.id !== id).map((x) => `<option value="${x.id}" ${x.id === p.reportsTo ? "selected" : ""}>${esc(x.name)}</option>`).join("");
+    openModal(id ? "Edit person" : "Add person", `<div class="field"><label>Full name</label><input id="f-name" value="${esc(p.name)}"></div><div class="row2"><div class="field"><label>Level</label><select id="f-lvl">${lvlOpts}</select></div><div class="field"><label>Role / title</label><input id="f-role" value="${esc(p.role)}"></div></div><div class="field"><label>Email</label><input id="f-email" value="${esc(p.email)}"></div><div class="row2"><div class="field"><label>Mobile</label><input id="f-mobile" value="${esc(p.mobile)}"></div><div class="field"><label>PAX</label><input id="f-pax" value="${esc(p.pax)}"></div></div><div class="field"><label>Location</label><input id="f-loc" value="${esc(p.location)}"></div><div class="field"><label>Reports to</label><select id="f-rep">${repOpts}</select></div>`,
+      () => { const name = $("#f-name").value.trim(); if (!name) { toast("Name required", "err"); return false; } const o = { id: p.id || uid("p-"), name, salutation: p.salutation || "", roleLevel: $("#f-lvl").value, role: $("#f-role").value.trim(), email: $("#f-email").value.trim(), mobile: $("#f-mobile").value.trim(), pax: $("#f-pax").value.trim(), location: $("#f-loc").value.trim(), reportsTo: $("#f-rep").value || null }; if (id) TEAM.people[TEAM.people.findIndex((x) => x.id === id)] = o; else TEAM.people.push(o); render(); saveTeam(); return true; });
+  }
+
+  /* ---- links & vendor contacts ---- */
+  function editLink(id, scope) {
+    scope = scope || "shared"; if (scope === "mine" && !mineReady()) { toast("Map this PC before adding personal links.", "err"); return; }
+    const list = linkList(scope), l = id ? list.find((x) => x.id === id) : { id: "", title: "", url: "https://", desc: "", category: "" };
+    openModal((id ? "Edit" : "Add") + (scope === "mine" ? " personal link" : " shared link"), `<div class="field"><label>Title</label><input id="f-title" value="${esc(l.title)}" placeholder="e.g. GST Portal"></div><div class="field"><label>URL</label><input id="f-url" value="${esc(l.url)}" placeholder="https://…"></div><div class="field"><label>Category</label><input id="f-cat" value="${esc(l.category || "")}" placeholder="e.g. GST / Portal / Tool"></div><div class="field"><label>Description</label><textarea id="f-desc">${esc(l.desc || "")}</textarea></div>`,
+      () => { const title = $("#f-title").value.trim(), url = $("#f-url").value.trim(); if (!title || !url) { toast("Title & URL required", "err"); return false; } const o = { id: l.id || uid("l"), title, url, category: $("#f-cat").value.trim(), desc: $("#f-desc").value.trim() }; if (id) list[list.findIndex((x) => x.id === id)] = o; else list.push(o); render(); saveScopedList(scope, "links"); return true; });
+  }
+  function editVendor(id, scope) {
+    scope = scope || "shared"; if (scope === "mine" && !mineReady()) { toast("Map this PC before adding personal contacts.", "err"); return; }
+    const list = vendorList(scope), v = id ? list.find((x) => x.id === id) : { id: "", name: "", org: "", role: "", area: "", email: "", phone: "", notes: "" };
+    openModal((id ? "Edit" : "Add") + (scope === "mine" ? " personal contact" : " shared contact"), `<div class="row2"><div class="field"><label>Contact name</label><input id="f-name" value="${esc(v.name)}"></div><div class="field"><label>Company / vendor</label><input id="f-org" value="${esc(v.org || "")}" placeholder="Deloitte / KPMG / TCS…"></div></div><div class="row2"><div class="field"><label>Role / designation</label><input id="f-role" value="${esc(v.role || "")}"></div><div class="field"><label>Supports (area / tool)</label><input id="f-area" value="${esc(v.area || "")}" placeholder="e.g. GST Litigation Tool"></div></div><div class="row2"><div class="field"><label>Email</label><input id="f-email" value="${esc(v.email || "")}"></div><div class="field"><label>Phone</label><input id="f-phone" value="${esc(v.phone || "")}"></div></div><div class="field"><label>Notes</label><textarea id="f-notes">${esc(v.notes || "")}</textarea></div>`,
+      () => { const name = $("#f-name").value.trim(); if (!name) { toast("Name required", "err"); return false; } const o = { id: v.id || uid("v"), name, org: $("#f-org").value.trim(), role: $("#f-role").value.trim(), area: $("#f-area").value.trim(), email: $("#f-email").value.trim(), phone: $("#f-phone").value.trim(), notes: $("#f-notes").value.trim() }; if (id) list[list.findIndex((x) => x.id === id)] = o; else list.push(o); render(); saveScopedList(scope, "vendors"); return true; });
+  }
+
+  /* ---- superadmin settings ---- */
+  function openSettings() {
+    const a = accessCfg(); const rev = {}; Object.keys(a.ipMap || {}).forEach((ip) => { rev[a.ipMap[ip]] = (rev[a.ipMap[ip]] ? rev[a.ipMap[ip]] + ", " : "") + ip; });
+    const rows = (TEAM.people || []).map((p) => `<div class="iprow"><span>${esc(p.name)} <span class="faint small">${esc(p.roleLevel)}</span></span><input data-ip="${p.id}" value="${esc(rev[p.id] || "")}" placeholder="IP address(es), comma separated"></div>`).join("");
+    const bp = a.backupPaths || {};
+    const ck = (id, on, label) => `<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="${id}" ${on ? "checked" : ""} style="width:16px;height:16px"> ${label}</label>`;
+    openModal("⚙ Superadmin settings", `
+      <div class="field"><label>Superadmin password</label><input id="set-pw" value="${esc(a.superadminPassword || "1234")}"></div>
+      <div class="field">${ck("set-enabled", a.enabled, "Enable IP-based access control")}</div>
+      <div class="field">${ck("set-viewall", a.viewAllReadOnly, "Give everyone <b>view-only</b> access to the whole workbook (as Superadmin sees it)")}</div>
+      <div class="field"><label>📢 Announcement (shown to everyone, blank = none)</label><textarea id="set-ann" placeholder="e.g. Q1 GST returns due by 20th — please update status.">${esc(a.announcement || "")}</textarea></div>
+      <div class="field"><label>💾 Backup folders — D: (local) and Y: (server) are hard-coded defaults; a timestamped copy is written to BOTH on every backup</label>
+        <input id="set-bp-local" value="${esc(bp.local || "")}" placeholder="Local drive (default D:\\MIS backup)" style="margin-bottom:8px">
+        <input id="set-bp-shared" value="${esc(bp.shared || "")}" placeholder="Server drive (default Y:\\Amit\\Old\\MIS backup)"></div>
+      <div class="field">${ck("set-autosync", a.autoSync, "Auto-sync these backups on every change")}</div>
+      <div class="field"><label>🟩 Portable Node.js path (used on next launch by Start-Dashboard.bat)</label><input id="set-node" value="${esc(a.nodePath || "")}" placeholder="e.g. D:\\node-v20\\node.exe  (or its folder)"></div>
+      <div class="field"><label>Map IP → person &nbsp;<span class="faint">(your current IP: <b>${esc(MY_IP || "—")}</b>)</span></label><div class="ipmap">${rows}</div></div>
+      <p class="faint small">Each mapped person sees & edits themselves + everyone reporting to them. IP login is a convenience gate on the office LAN — not strong security.</p>`,
+      () => {
+        const acc = TEAM.access = TEAM.access || {};
+        acc.superadminPassword = $("#set-pw").value.trim() || "1234";
+        acc.enabled = $("#set-enabled").checked;
+        acc.viewAllReadOnly = $("#set-viewall").checked;
+        acc.announcement = $("#set-ann").value.trim();
+        acc.backupPaths = { local: $("#set-bp-local").value.trim(), shared: $("#set-bp-shared").value.trim() };
+        acc.autoSync = $("#set-autosync").checked;
+        acc.nodePath = $("#set-node").value.trim();
+        const map = {}; $$("#modalCard [data-ip]").forEach((inp) => { const pid = inp.dataset.ip; inp.value.split(",").map((s) => s.trim()).filter(Boolean).forEach((ip) => { map[ip] = pid; }); });
+        acc.ipMap = map; currentUserId = map[MY_IP] || null; realUserId = currentUserId; realSuper = isSuper; syncWorkspace();
+        if (acc.nodePath) fetch("./api/nodepath", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: acc.nodePath }) }).catch(() => {});
+        render(); saveTeam(); return true;
+      });
+  }
+
+  /* ============================ SEARCH ============================ */
+  function buildSearch(q) {
+    q = q.trim().toLowerCase(); if (!q) return []; const out = [];
+    if (UI.mode === "personal" && PD) {
+      PD.requests.filter((r) => [r.title, r.ref, r.owner, r.notes].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((r) => { const p = pProj(r.project); out.push({ kind: "req", m: r.title, s: (p ? p.name : "") + " · " + (r.ref || ""), go: () => { UI.pTab = r.project; UI.subtab = r.type; } }); });
+      PD.trackedProjects.filter((p) => (p.name || "").toLowerCase().includes(q)).slice(0, 4).forEach((p) => out.push({ kind: "proj", m: p.name, s: "Project · " + p.status, go: () => { UI.pTab = "projects"; } }));
+      PD.tasks.filter((t) => (t.title || "").toLowerCase().includes(q)).slice(0, 4).forEach((t) => out.push({ kind: "task", m: t.title, s: "Task", go: () => { UI.pTab = "tasks"; } }));
+    } else if (TEAM) {
+      vItems().filter((w) => [w.title, w.notes].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((w) => { const t = tag(w.tag); out.push({ kind: "wi", m: w.title, s: (t ? t.name : "") + " · " + ST_LABEL[w.status], go: () => { UI.teamTab = "pendency"; } }); });
+      vPeople().filter((p) => [p.name, p.role, p.email].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((p) => out.push({ kind: "person", m: p.name, s: p.role, go: () => { UI.teamTab = "directory"; } }));
+    }
+    // Links & Tech contacts live on the team tabs (shared + your private list) — index them in any mode so new entries are searchable.
+    if (TEAM) {
+      const links = (TEAM.links || []).map((l) => ({ x: l, src: "Shared" })).concat(mineReady() ? (PD.links || []).map((l) => ({ x: l, src: "Mine" })) : []);
+      links.filter((o) => [o.x.title, o.x.url, o.x.desc, o.x.category].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((o) => out.push({ kind: "link", m: o.x.title, s: "Link · " + (o.x.category ? o.x.category + " · " : "") + o.src, go: () => { UI.mode = "team"; UI.teamTab = "links"; } }));
+      const vendors = (TEAM.vendors || []).map((v) => ({ x: v, src: "Shared" })).concat(mineReady() ? (PD.vendors || []).map((v) => ({ x: v, src: "Mine" })) : []);
+      vendors.filter((o) => [o.x.name, o.x.org, o.x.role, o.x.area, o.x.email, o.x.phone, o.x.notes].some((v) => (v || "").toLowerCase().includes(q))).slice(0, 6).forEach((o) => out.push({ kind: "vendor", m: o.x.name, s: "Tech contact" + (o.x.org ? " · " + o.x.org : "") + " · " + o.src, go: () => { UI.mode = "team"; UI.teamTab = "vendors"; } }));
+    }
+    return out;
+  }
+  let srRes = [], srIdx = -1;
+  function placeSearch() {
+    const box = $("#searchResults"), inp = $("#globalSearch"); if (!box || !inp) return;
+    const r = inp.getBoundingClientRect();
+    box.style.left = Math.round(r.left) + "px"; box.style.top = Math.round(r.bottom + 6) + "px"; box.style.width = Math.round(r.width) + "px";
+  }
+  function renderSearch() {
+    const box = $("#searchResults"); if (!(UI.q || "").trim()) { box.classList.add("hidden"); return; }
+    if (!srRes.length) { box.innerHTML = `<div class="sr-empty">No matches for “${esc(UI.q)}”</div>`; placeSearch(); box.classList.remove("hidden"); return; }
+    const labels = { req: "Requests", proj: "Projects", task: "Tasks", wi: "Work items", person: "People", link: "Links", vendor: "Tech contacts" }; let html = "";
+    ["req", "wi", "person", "link", "vendor", "proj", "task"].forEach((k) => { const rows = srRes.filter((r) => r.kind === k); if (!rows.length) return; html += `<div class="sr-g">${labels[k]}</div>`; rows.forEach((r) => { const gi = srRes.indexOf(r); html += `<div class="sr-i ${gi === srIdx ? "active" : ""}" data-action="sr-go" data-i="${gi}"><div><div class="sr-m">${esc(r.m)}</div><div class="sr-s">${esc(r.s)}</div></div></div>`; }); });
+    box.innerHTML = html; placeSearch(); box.classList.remove("hidden");
+  }
+  function srGo(r) { $("#searchResults").classList.add("hidden"); r.go(); saveUI(); render(); }
+
+  /* ============================ BACKUP / EXPORT ============================ */
+  function dl(content, name, type) { const b = new Blob([content], { type }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; a.click(); }
+  function exportJSON() { dl(JSON.stringify({ personal: PD, team: TEAM }, null, 2), "idbi-dashboard-backup-" + todayISO() + ".json", "application/json"); toast("Backup downloaded", "ok"); }
+  async function applyRestoredData(o) {
+    if (!o || typeof o !== "object") throw new Error("invalid backup");
+    if (o.team) { TEAM = o.team; normalizeTeam(); }
+    if (o.personal) { const owner = workspaceOwnerId(); if (owner) TEAM.workspaces[owner] = normalizeWorkspace(o.personal, workspaceOwnerName()); }
+    syncWorkspace(); rememberTeam();
+    if (o.team) await saveTeam({ full: true }); else if (o.personal) await savePersonal();
+    render();
+  }
+  function importJSON(file) { const fr = new FileReader(); fr.onload = async () => { try { const o = JSON.parse(fr.result); if (!o) throw new Error("invalid"); if (!confirm("Restore data from this backup? Current workspace/team data will be overwritten.")) return; await applyRestoredData(o); toast("Backup restored", "ok"); } catch (e) { toast("Import failed: " + e.message, "err"); } }; fr.readAsText(file); }
+  async function restoreLatest() {
+    setSaved("saving");
+    try {
+      const j = await (await fetch("./api/restore-latest", { cache: "no-store" })).json();
+      if (!j.ok) { toast(j.error || "No backup found on D: or Y: drive", "err"); setSaved("err"); return; }
+      const when = j.when ? new Date(j.when).toLocaleString() : "";
+      if (!confirm("Restore the LATEST backup from disk?\n\nFrom: " + (j.from || "") + (when ? "\nSaved: " + when : "") + "\n\nThis overwrites the current team & workspace data.")) { setSaved("saved"); return; }
+      await applyRestoredData(j.data);
+      toast("Restored latest backup ✓", "ok");
+    } catch (e) { toast("Restore needs the server running (Start-Dashboard.bat).", "err"); setSaved("err"); }
+  }
+  async function backupToDisk(silent) {
+    const bp = accessCfg().backupPaths || {}; const paths = [bp.local, bp.shared].filter(Boolean);
+    try {
+      const j = await (await fetch("./api/backup", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data: { personal: PD, team: TEAM }, paths: paths }) })).json();
+      if (!j.ok) throw 0;
+      if (!silent) { const n = (j.written || []).length, e = (j.errors || []).length; toast("Backed up to " + n + " location(s)" + (e ? " · " + e + " failed (check path)" : ""), e ? "err" : "ok"); }
+    } catch (e) { if (!silent) toast("Disk backup needs the server running.", "err"); }
+  }
+  const autoSyncMaybe = debounce(() => { if (accessCfg().autoSync) backupToDisk(true); }, 2000);
+  function exportReqCsv() { const proj = pProj(UI.pTab); if (!proj) { toast("Open a project tab first", "err"); return; } const rows = [["Ref", "Title", "Type", "Raised", "Deadline", "Status", "Owner", "Approver", "Notes"]]; PD.requests.filter((r) => r.project === proj.id && r.type === UI.subtab).forEach((r) => rows.push([r.ref, r.title, (pType(r.type) || {}).name, r.raised, r.deadline, REQ_LABEL[r.status], r.owner, r.approver, r.notes])); dl("﻿" + rows.map((r) => r.map((c) => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\r\n"), proj.id + "-" + UI.subtab + ".csv", "text/csv"); toast("CSV downloaded", "ok"); }
+  function exportWiCsv() { const rows = [["Title", "Tag", "Assignee", "Due", "Status", "Priority", "Notes"]]; vItems().forEach((w) => rows.push([w.title, (tag(w.tag) || {}).name, (person(w.assignee) || {}).name, w.due, ST_LABEL[w.status], w.priority, w.notes])); dl("﻿" + rows.map((r) => r.map((c) => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\r\n"), "work-pendency.csv", "text/csv"); toast("CSV downloaded", "ok"); }
+  function copyText(t) { navigator.clipboard ? navigator.clipboard.writeText(t).then(() => toast("Copied: " + t)) : toast(t); }
+
+  /* ============================ MODE / ADMIN ============================ */
+  function openWorkspace() { UI.mode = "personal"; syncWorkspace(); saveUI(); render(); $("#content").scrollTop = 0; toast(workspaceOwnerId() ? "Opened " + workspaceOwnerName() + "'s workspace" : "Ask your admin to map this PC to your name", workspaceOwnerId() ? "ok" : "err"); }
+  function backToTeam() { UI.mode = "team"; saveUI(); render(); $("#content").scrollTop = 0; }
+  function toggleTeamEdit() { if (!canEdit()) { toast("You don't have edit rights", "err"); return; } teamEdit = !teamEdit; render(); }
+  const guardTeam = () => viewAs ? (toast("Exit view-as to make changes", "err"), false) : (teamEdit || (toast("Turn on “✎ Edit” first", "err"), false));
+  function loginSuper() { const a = accessCfg(); const pw = prompt("Superadmin password:"); if (pw == null) return; if (pw !== String(a.superadminPassword || "1234")) { toast("Wrong password", "err"); return; } isSuper = true; localStorage.setItem(SUPER_KEY, "1"); render(); toast("Superadmin mode ON", "ok"); }
+  function logoutSuper() { isSuper = false; teamEdit = false; localStorage.removeItem(SUPER_KEY); render(); toast("Logged out of admin"); }
+
+  /* ============================ WELCOME ============================ */
+  function showWelcome(force) {
+    if (!force && sessionStorage.getItem("idbi.welcomed")) return;
+    const me = currentUserId ? person(currentUserId) : null; const host = isLoopback(MY_IP);
+    const name = me ? me.name : (isSuper ? "Superadmin" : "there");
+    const role = isSuper ? (host ? "Superadmin · this PC · full access" : "Superadmin · full access") : (me ? me.role : "View-only access");
+    const h = new Date().getHours(); const greet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    const scope = isSuper ? "You can view & manage the entire team." : (me ? "You can view & update your work and your team's." : "View-only. Ask the admin to map your IP.");
+    const el = $("#welcome");
+    el.innerHTML = `<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div class="orb o4"></div>
+      <div class="welcome-card"><img class="w-logo" src="assets/idbi-logo.png" alt="IDBI Bank" width="240" height="76"><div class="w-hi">${greet},</div><h1>${esc((name || "there").split(" ")[0])}</h1><div class="w-role">${esc(role)}</div><div class="w-time" id="wTime"></div><button class="btn w-enter" data-action="welcome-enter">View dashboard →</button><div class="w-scope">${esc(scope)}</div></div>`;
+    el.classList.remove("hidden");
+    const t = $("#wTime"); if (t) t.textContent = new Date().toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+  function hideWelcome() { sessionStorage.setItem("idbi.welcomed", "1"); $("#welcome").classList.add("hidden"); }
+
+  /* ===== start-of-day role chooser (admin / host PC only) ===== */
+  function applyStartRole(role) {
+    if (role === "super") { isSuper = true; realSuper = true; currentUserId = null; realUserId = null; }            // pure admin: sees the whole team
+    else if (person(role)) { isSuper = true; realSuper = true; currentUserId = role; realUserId = role; }            // host stays Superadmin-capable, but works as the chosen person (own items + their reports)
+    else return;
+    viewAs = null; sessionStorage.removeItem(VIEWAS_KEY); sessionStorage.setItem(START_ROLE_KEY, role);
+    teamEdit = false; UI.mode = "team"; UI.teamTab = "pendency"; UI.orgFocus = currentUserId; saveUI();
+    syncWorkspace(); render();
+  }
+  function showStartChooser() {
+    const h = new Date().getHours(); const greet = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+    const ppl = TEAM.people || [];
+    const opts = ppl.map((p) => `<option value="${p.id}" ${p.id === "p-amit" ? "selected" : ""}>${esc(p.name)} · ${esc(p.roleLevel)}</option>`).join("");
+    $("#modalCard").innerHTML = `<div class="modal-head"><h3>${greet} — how do you want to start today?</h3></div>
+      <div class="modal-body">
+        <p class="faint small" style="margin:0">This is the admin PC. Choose <b>Superadmin</b> to manage the whole team, or continue as a person to focus on their own workspace. You can switch anytime from the sidebar.</p>
+        <button class="btn" data-action="start-super" style="width:100%;padding:12px">🔐 Superadmin — manage the whole team</button>
+        <div class="field"><label>Or continue as a person</label><div style="display:flex;gap:8px"><select id="start-person" class="select" style="flex:1">${opts}</select><button class="btn btn-ghost" data-action="start-person">👤 Continue</button></div></div>
+      </div>`;
+    $("#modal").classList.remove("hidden"); $("#modal")._save = null; $("#modal")._infoEdit = null;
+  }
+
+  /* ============================ EVENTS ============================ */
+  function bind() {
+    const sbBtn = $("#sidebarToggle"); if (sbBtn) sbBtn.addEventListener("click", toggleSidebar);
+    $("#calPrev").addEventListener("click", () => calShift(-1));
+    $("#calNext").addEventListener("click", () => calShift(1));
+    $("#calToday").addEventListener("click", () => { UI.calMonth = todayISO().slice(0, 7); saveUI(); renderCalendar(); });
+    const si = $("#globalSearch");
+    si.addEventListener("input", debounce(() => { UI.q = si.value; srRes = buildSearch(UI.q); srIdx = -1; renderSearch(); render(); }, 110));
+    si.addEventListener("keydown", (e) => { const n = srRes.length; if (e.key === "ArrowDown" && n) { e.preventDefault(); srIdx = (srIdx + 1) % n; renderSearch(); } else if (e.key === "ArrowUp" && n) { e.preventDefault(); srIdx = (srIdx - 1 + n) % n; renderSearch(); } else if (e.key === "Enter" && srIdx >= 0) srGo(srRes[srIdx]); else if (e.key === "Escape") { $("#searchResults").classList.add("hidden"); si.blur(); } });
+    document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); si.focus(); si.select(); } if (e.key === "Escape") closeModal(); });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".search-wrap") && !e.target.closest("#searchResults")) $("#searchResults").classList.add("hidden"); });
+    window.addEventListener("resize", () => { if (!$("#searchResults").classList.contains("hidden")) placeSearch(); });
+    $("#addBtn").addEventListener("click", () => { if (viewAs) { toast("Exit view-as to make changes", "err"); return; } if (UI.mode === "personal") { const tk = (UI.pTab || "").indexOf("tk:") === 0 ? findTk(UI.pTab.slice(3)) : null; if (!canEditPersonal()) return; if (pProj(UI.pTab)) editRequest(null); else if (tk) editTrackerRow(tk.id, null); else if (UI.pTab === "projects") editProj(null); else editTask(null); } else { if (UI.teamTab === "links") return editLink(null, "shared"); if (UI.teamTab === "vendors") return editVendor(null, "shared"); if (UI.teamTab === "pendency" || UI.teamTab === "overview") { if (!canAddWorkItem()) { toast(currentUserId ? "Turn on Edit to add for others" : "Ask admin to map this PC before adding work", "err"); return; } return editWorkItem(null, !teamEdit); } if (!guardTeam()) return; if (UI.teamTab === "directory") editPerson(null); else editWorkItem(null); } });
+    $("#editTeamBtn").addEventListener("click", toggleTeamEdit);
+    $("#importFile").addEventListener("change", (e) => { if (e.target.files[0]) importJSON(e.target.files[0]); e.target.value = ""; });
+    document.body.addEventListener("click", onClick);
+    document.body.addEventListener("change", onChange);
+  }
+  function onClick(e) {
+    const el = e.target.closest("[data-action]"); if (!el) return;
+    const a = el.dataset.action, id = el.dataset.id, tkid = el.dataset.tk;
+    const acts = {
+      tab: () => { UI.teamTab = el.dataset.tab; saveUI(); render(); $("#content").scrollTop = 0; },
+      ptab: () => { UI.pTab = el.dataset.tab; saveUI(); render(); $("#content").scrollTop = 0; },
+      sub: () => { UI.subtab = el.dataset.sub; saveUI(); render(); },
+      "back-team": backToTeam, "open-workspace": openWorkspace,
+      "toggle-clock": () => { UI.clockCollapsed = !UI.clockCollapsed; saveUI(); applyPanels(); },
+      "toggle-cal": () => { UI.calCollapsed = !UI.calCollapsed; saveUI(); applyPanels(); },
+      "cal-day": () => { const h = window.HOLIDAY_BY_DATE[el.dataset.iso]; if (h) toast("🎉 " + h.name + " · " + fmtDate(el.dataset.iso)); },
+      kpi: () => { const k = el.dataset.k; UI.mode = "team"; UI.teamTab = "pendency"; UI.tTag = "all"; UI.tStatus = (k === "week" ? "all" : k); if (k === "week") UI.tSort = "due"; saveUI(); render(); $("#content").scrollTop = 0; },
+      "view-wi": () => viewWorkItem(id),
+      "wi-add-update": () => { const w = (TEAM.workItems || []).find((x) => x.id === id); if (!w || !canEditWorkItem(w)) { toast("You can't update this item", "err"); return; } const ta = $("#wi-update-text"); const txt = (ta && ta.value || "").trim(); if (!txt) { toast("Write an update first", "err"); return; } w.updates = Array.isArray(w.updates) ? w.updates : []; w.updates.push({ at: new Date().toISOString(), by: updaterName(), text: txt }); render(); saveTeam(); viewWorkItem(id); toast("Update added", "ok"); },
+      "wi-del-update": () => { const w = (TEAM.workItems || []).find((x) => x.id === id); if (!w || !canEditWorkItem(w)) return; const target = sortedUpdates(w)[+el.dataset.i]; if (target && confirm("Delete this update from the trail?")) { w.updates = (w.updates || []).filter((u) => u !== target); render(); saveTeam(); viewWorkItem(id); } },
+      "org-slice": () => { UI.orgFocus = id; saveUI(); render(); },
+      "org-up": () => { const f = person(UI.orgFocus); if (f && f.reportsTo && UI.orgFocus !== baseRootId()) { UI.orgFocus = f.reportsTo; saveUI(); render(); } },
+      "org-focus": () => { UI.orgFocus = id; saveUI(); render(); },
+      "add-req": () => editRequest(null), "edit-req": () => editRequest(id), "del-req": () => { if (canEditPersonal() && confirm("Delete this request?")) { PD.requests = PD.requests.filter((x) => x.id !== id); savePersonal(); render(); toast("Deleted"); } },
+      "add-proj": () => editProj(null), "edit-proj": () => editProj(id), "del-proj": () => { if (canEditPersonal() && confirm("Delete this project?")) { PD.trackedProjects = PD.trackedProjects.filter((x) => x.id !== id); savePersonal(); render(); toast("Deleted"); } },
+      "add-task": () => editTask(null), "edit-task": () => editTask(id), "del-task": () => { if (canEditPersonal() && confirm("Delete this task?")) { PD.tasks = PD.tasks.filter((x) => x.id !== id); savePersonal(); render(); toast("Deleted"); } },
+      "export-req": exportReqCsv,
+      "new-ptab": () => editProjectTab(null), "edit-ptab": () => editProjectTab(id), "del-ptab": () => delProjectTab(id), "manage-types": manageReqTypes,
+      "new-tracker": () => editTracker(null), "edit-tracker": () => editTracker(tkid), "del-tracker": () => { if (canEditPersonal() && confirm("Delete this tracker and ALL its entries?")) { PD.trackers = (PD.trackers || []).filter((t) => t.id !== tkid); UI.pTab = (PD.projects[0] || {}).id || "projects"; savePersonal(); render(); toast("Tracker deleted"); } },
+      "add-tkrow": () => editTrackerRow(tkid, null), "edit-tkrow": () => editTrackerRow(tkid, id), "del-tkrow": () => { const t = findTk(tkid); if (canEditPersonal() && t && confirm("Delete this entry?")) { t.rows = t.rows.filter((r) => r.id !== id); savePersonal(); render(); toast("Deleted"); } },
+      "export-tk": () => exportTrackerCsv(tkid), "welcome-enter": () => hideWelcome(),
+      "add-link": () => viewAs ? toast("Exit view-as to make changes", "err") : editLink(null, el.dataset.scope || "shared"), "edit-link": () => viewAs ? toast("Exit view-as to make changes", "err") : editLink(id, el.dataset.scope || "shared"), "del-link": () => { const scope = el.dataset.scope || "shared"; if (!viewAs && (scope === "shared" || mineReady()) && confirm("Delete this link?")) { const list = linkList(scope), i = list.findIndex((x) => x.id === id); if (i >= 0) list.splice(i, 1); render(); saveScopedList(scope, "links"); } },
+      "add-vendor": () => viewAs ? toast("Exit view-as to make changes", "err") : editVendor(null, el.dataset.scope || "shared"), "edit-vendor": () => viewAs ? toast("Exit view-as to make changes", "err") : editVendor(id, el.dataset.scope || "shared"), "del-vendor": () => { const scope = el.dataset.scope || "shared"; if (!viewAs && (scope === "shared" || mineReady()) && confirm("Delete this contact?")) { const list = vendorList(scope), i = list.findIndex((x) => x.id === id); if (i >= 0) list.splice(i, 1); render(); saveScopedList(scope, "vendors"); } },
+      "exit-viewas": exitViewAs, "their-welcome": () => showWelcome(true),
+      "start-super": () => { applyStartRole("super"); closeModal(); toast("Started as Superadmin", "ok"); showWelcome(true); },
+      "start-person": () => { const pid = ($("#start-person") || {}).value; if (!pid) return; applyStartRole(pid); closeModal(); toast("Started as " + ((person(pid) || {}).name || ""), "ok"); showWelcome(true); },
+      "start-chooser": () => showStartChooser(),
+      "ttag": () => { UI.tTag = el.dataset.v; saveUI(); render(); }, "drole": () => { UI.dRole = el.dataset.v; saveUI(); render(); },
+      "add-wi": () => { if (canAddWorkItem()) editWorkItem(null, !teamEdit); else toast("Ask admin to map this PC before adding work", "err"); }, "edit-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w)) editWorkItem(id, !teamEdit); else toast("You don't have edit rights for this item", "err"); }, "del-wi": () => { const w = TEAM.workItems.find((x) => x.id === id); if (canEditWorkItem(w) && confirm("Delete this item?")) { TEAM.workItems = TEAM.workItems.filter((x) => x.id !== id); render(); saveTeam(); } },
+      "add-person": () => guardTeam() && editPerson(null), "edit-person": () => { if (viewAs) { toast("Exit view-as to make changes", "err"); return; } if (id && id === workspaceOwnerId()) { editPerson(id); return; } if (guardTeam() && canEdit(id)) editPerson(id); }, "del-person": () => { if (guardTeam() && canEdit(id) && confirm("Remove this person?")) { TEAM.people = TEAM.people.filter((x) => x.id !== id); render(); saveTeam(); } },
+      "manage-tags": () => manageWorkTags(), "clear-dummies": clearDummyItems,
+      "toggle-tagedit": () => { if (!canManageTags()) { toast("You can't edit tabs here", "err"); return; } tagEditMode = !tagEditMode; render(); },
+      "toggle-snap": () => { UI.snapCollapsed = !UI.snapCollapsed; saveUI(); render(); },
+      "pie-tag": () => { UI.mode = "team"; UI.teamTab = "pendency"; UI.tTag = id; UI.tStatus = "open"; saveUI(); render(); $("#content").scrollTop = 0; },
+      "pie-status": () => { UI.mode = "team"; UI.teamTab = "pendency"; UI.tStatus = el.dataset.id || "all"; saveUI(); render(); $("#content").scrollTop = 0; },
+      "del-tag": () => { if (!canManageTags()) { toast("You can't manage tabs here", "err"); return; } const t = tag(id); if (t && confirm(`Delete the “${t.name}” tab for everyone? Items using it keep their stored tab until re-tagged.`)) { TEAM.workTags = (TEAM.workTags || []).filter((x) => x.id !== id); if (UI.tTag === id) UI.tTag = "all"; render(); saveTeam(); toast("Tab deleted"); } },
+      "wt-add-row": () => { const box = $("#wt-rows"); if (box) { box.insertAdjacentHTML("beforeend", wtRowHtml("", PALETTE[$$("#wt-rows .wt-row").length % PALETTE.length])); const last = box.querySelector(".wt-row:last-child .wt-name"); if (last) last.focus(); } },
+      "wt-del-row": () => { const row = el.closest(".wt-row"); if (row) row.remove(); },
+      "export-wi": exportWiCsv, "copy": () => copyText(el.dataset.copy),
+      "login-super": loginSuper, "logout-super": logoutSuper, "settings": openSettings,
+      "sr-go": () => srGo(srRes[+el.dataset.i]),
+      "modal-x": closeModal, "modal-save": () => { const fn = $("#modal")._save; if (!fn || fn() !== false) closeModal(); }, "info-edit": () => { const fn = $("#modal")._infoEdit; if (fn) fn(); },
+      "theme": () => { UI.theme = el.dataset.theme; saveUI(); applyTheme(); }, "accent": () => { UI.accent = el.dataset.c; saveUI(); applyTheme(); },
+      "export-json": exportJSON, "import-json": () => $("#importFile").click(), "backup-disk": backupToDisk, "restore-latest": restoreLatest,
+    };
+    if (acts[a]) acts[a]();
+  }
+  function onChange(e) {
+    const el = e.target.closest("[data-action]"); if (!el) return;
+    if (el.dataset.action === "tstatus") { UI.tStatus = el.value; saveUI(); render(); }
+    if (el.dataset.action === "tsort") { UI.tSort = el.value; saveUI(); render(); }
+    if (el.dataset.action === "drep") { UI.dRep = el.value; saveUI(); render(); }
+    if (el.dataset.action === "theme-sel") { UI.theme = el.value; UI.accent = THEME_ACCENT[el.value] || UI.accent; saveUI(); applyTheme(); }
+    if (el.dataset.action === "viewas") { el.value ? enterViewAs(el.value) : exitViewAs(); }
+    if (el.dataset.action === "toggle-task") { if (!canEditPersonal()) { el.checked = !el.checked; toast("Exit view-as to make workspace changes", "err"); return; } const t = PD.tasks.find((x) => x.id === el.dataset.id); if (t) { t.done = el.checked; savePersonal(); render(); } }
+  }
+
+  /* ============================ TOAST ============================ */
+  let toastT;
+  function toast(msg, kind) { const t = $("#toast"); t.className = "toast glass" + (kind ? " " + kind : ""); t.textContent = msg; t.classList.remove("hidden"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.add("hidden"), 2600); }
+
+  /* ============================ BOOT ============================ */
+  async function boot() {
+    loadUI(); isSuper = localStorage.getItem(SUPER_KEY) === "1"; // first-time users default to the "My Workspace" view (loadUI); returning users keep their last view
+    applyTheme(); applySidebar(); buildClock(); renderCalendar(); applyPanels();
+    bind();
+    await loadTeam();
+    try { MY_IP = (await (await fetch("./api/whoami", { cache: "no-store" })).json()).ip; } catch (e) { MY_IP = null; }
+    currentUserId = (accessCfg().ipMap || {})[MY_IP] || null;
+    const host = isLoopback(MY_IP);
+    const startRole = host ? sessionStorage.getItem(START_ROLE_KEY) : null;
+    if (host) {
+      if (startRole && startRole !== "super" && person(startRole)) { isSuper = true; currentUserId = startRole; }   // chosen earlier this session
+      else if (startRole === "super") { isSuper = true; currentUserId = null; }
+      else isSuper = true;   // the PC running the .bat = host superadmin (default until they choose)
+    }
+    realUserId = currentUserId; realSuper = isSuper;
+    viewAs = sessionStorage.getItem(VIEWAS_KEY) || null; applyViewAs();
+    await migrateLegacyPersonal(); syncWorkspace();
+    $("#ownerName").textContent = workspaceOwnerId() ? workspaceOwnerName() : "Guest";
+    render(); setSaved("saved");
+    if (host && !startRole) showStartChooser(); else showWelcome();
+    setInterval(pollTeam, 12000); window.addEventListener("focus", pollTeam);  // keep all users' views in sync
+    setTimeout(() => { const over = vItems().filter(wiOverdue).length; if (over) toast(`⏰ ${over} item${over > 1 ? "s" : ""} overdue in your scope`, "err"); }, 800);
+  }
+  document.addEventListener("DOMContentLoaded", boot);
+})();

@@ -1,0 +1,28 @@
+﻿IDBI MIS - Work Command Center   |   READ ME FIRST
+==================================================
+
+WHY SOME FILES END IN ".txt"
+Gmail blocks e-mails that contain program/script files (.bat .js .py), even
+inside a ZIP. To get this to you, 5 files were given a temporary ".txt" ending.
+Rename them back (1 minute) and the dashboard runs normally.
+
+STEP 1 - rename these 5 files back (just remove the ".txt" at the end):
+
+   Start-Dashboard.bat.txt    ->  Start-Dashboard.bat
+   server.js.txt              ->  server.js
+   server.py.txt              ->  server.py
+   assets\app.js.txt          ->  assets\app.js
+   assets\holidays.js.txt     ->  assets\holidays.js
+
+   (If Windows hides endings: Explorer -> View -> tick "File name extensions".)
+
+   FASTER (optional): open this folder, click the address bar, type  powershell
+   press Enter, then paste this single line and press Enter:
+
+   Get-ChildItem -Recurse -Filter *.txt | Where-Object { $_.Name -match '\.(bat|js|py)\.txt$' } | ForEach-Object { Rename-Item -LiteralPath $_.FullName -NewName ($_.Name -replace '\.txt$','') }
+
+STEP 2 - run it:
+   Double-click  Start-Dashboard.bat  then open  http://localhost:8080
+   First-time PC setup (Node path etc.) is in  OFFICE-SETUP.md
+
+That's all.

@@ -1,0 +1,1414 @@
+{
+  "meta": {
+    "org": "IDBI BANK",
+    "department": "MIS Department",
+    "title": "Work Command Center",
+    "subtitle": "Management Information System  |  Corporate Centre, Mumbai",
+    "updated": "2026-06-02",
+    "editPin": "1234"
+  },
+  "access": {
+    "enabled": true,
+    "superadminPassword": "1234",
+    "viewAllReadOnly": false,
+    "announcement": "",
+    "backupPaths": {
+      "local": "",
+      "shared": ""
+    },
+    "autoSync": false,
+    "nodePath": "",
+    "ipMap": {
+      "127.0.0.1": "p-amit",
+      "10.123.210.37": "p-amit"
+    }
+  },
+  "workTags": [
+    {
+      "id": "oracle-gl",
+      "name": "Oracle GL",
+      "color": "#0a84ff"
+    },
+    {
+      "id": "finsync",
+      "name": "FINSYNC Application",
+      "color": "#64d2ff"
+    },
+    {
+      "id": "saral-asp-gsp",
+      "name": "SARAL GST / ASP-GSP",
+      "color": "#30d158"
+    },
+    {
+      "id": "gst-litigation",
+      "name": "GST Litigation Tool",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "interest-ie",
+      "name": "Interest Income/Expenses",
+      "color": "#5e5ce6"
+    },
+    {
+      "id": "stationary",
+      "name": "Stationary Bills",
+      "color": "#ef4444"
+    },
+    {
+      "id": "pmps",
+      "name": "PMPs",
+      "color": "#bf5af2"
+    },
+    {
+      "id": "misc",
+      "name": "Miscellaneous Work",
+      "color": "#64748b"
+    }
+  ],
+  "people": [
+    {
+      "id": "p-narayan",
+      "name": "Narayan R Kodiyal",
+      "salutation": "Shri",
+      "roleLevel": "DGM",
+      "role": "Deputy General Manager, MIS",
+      "email": "narayan.kodiyal@idbi.co.in",
+      "mobile": "",
+      "pax": "",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": null
+    },
+    {
+      "id": "p-surya",
+      "name": "Surya Bihari",
+      "salutation": "Shri",
+      "roleLevel": "AGM",
+      "role": "Asst. General Manager, MIS",
+      "email": "surya.bihari@idbi.co.in",
+      "mobile": "8693052227",
+      "pax": "",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-narayan"
+    },
+    {
+      "id": "p-ankit",
+      "name": "Ankit Agarwal",
+      "salutation": "Shri",
+      "roleLevel": "AGM",
+      "role": "Asst. General Manager, MIS",
+      "email": "agarwal.ankit@idbi.co.in",
+      "mobile": "9580570705",
+      "pax": "022-66553300",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-narayan"
+    },
+    {
+      "id": "p-amit",
+      "name": "Amit Dethe",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "amit.dethe@idbi.co.in",
+      "mobile": "8788994856",
+      "pax": "022-66908448",
+      "location": "Belapur, Navi Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-vivek",
+      "name": "Vivek Kumar Singh",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "vivekkumar.s@idbi.co.in",
+      "mobile": "8097723303",
+      "pax": "022-66700243",
+      "location": "Corporate Center Tower, Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-anupam",
+      "name": "Anupam K. Herenz",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "anupam.herenz@idbi.co.in",
+      "mobile": "7415560785",
+      "pax": "022-66552733",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-govind",
+      "name": "Govind K. Gaurav",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "govind.gaurav@idbi.co.in",
+      "mobile": "9709134745",
+      "pax": "022-66194138",
+      "location": "Belapur, Navi Mumbai",
+      "reportsTo": "p-surya"
+    },
+    {
+      "id": "p-manish",
+      "name": "Manish Agrawal",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "manish.a@idbi.co.in",
+      "mobile": "7665005473",
+      "pax": "022-66553137",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-ankit"
+    },
+    {
+      "id": "p-shivesh",
+      "name": "Shivesh Kumar",
+      "salutation": "Shri",
+      "roleLevel": "Manager",
+      "role": "Manager, MIS",
+      "email": "shivesh.kumar@idbi.co.in",
+      "mobile": "9927554638",
+      "pax": "022-66553025",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-ankit"
+    },
+    {
+      "id": "p-bhanu",
+      "name": "Bhanupriya Prakashan",
+      "salutation": "Smt.",
+      "roleLevel": "AM",
+      "role": "Assistant Manager, MIS",
+      "email": "bhanupriya.prakashan@idbi.co.in",
+      "mobile": "8891011915",
+      "pax": "",
+      "location": "Corporate Centre, Mumbai",
+      "reportsTo": "p-ankit"
+    }
+  ],
+  "workItems": [
+    {
+      "id": "wl-01",
+      "title": "Oracle DB access — Tower PCs",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-02",
+      "title": "PIM ARCON access — to be followed up with Rathina",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-03",
+      "title": "Mail revert from Deloitte for certificate",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-04",
+      "title": "Establishment of full-fledged Disaster Recovery (DR) setup within the approved timeline, with periodic validation of backups in the interim.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "",
+      "notes": "Request raised in ITOMS · Approval to be taken",
+      "updates": [
+        {
+          "at": "2026-05-20T10:05:00.000Z",
+          "by": "Amit Dethe",
+          "text": "DR setup request raised in ITOMS (CRF logged)."
+        },
+        {
+          "at": "2026-05-28T16:30:00.000Z",
+          "by": "Amit Dethe",
+          "text": "BRS shared and under analysis with Sharvari Kudale / Amit Rathee."
+        },
+        {
+          "at": "2026-06-03T11:15:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Approval pending from IS-Security; follow-up mail sent. Interim backup validation continuing."
+        }
+      ],
+      "trail": true
+    },
+    {
+      "id": "wl-05",
+      "title": "SSL certificate clarification from Deloitte",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "Reply pending from Deloitte"
+    },
+    {
+      "id": "wl-06",
+      "title": "Implementation of appropriate compensating controls to mitigate risks from unencrypted communication during the interim period; strict SIEM monitoring & access controls so no unauthorized access or data compromise.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Follow up from Deloitte"
+    },
+    {
+      "id": "wl-07",
+      "title": "Closure of all open VA/AppSec observations within prescribed timelines or fresh risk approval wherever required",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Closed till 31.03.2026 · New points to be closed"
+    },
+    {
+      "id": "wl-08",
+      "title": "Obtaining vendor security assurance/certificate confirming absence of vulnerabilities, malware and covert channels.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-06-15",
+      "notes": "To be provided by Deloitte by 15.06.2026",
+      "updates": [
+        {
+          "at": "2026-06-01T12:00:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Requested vendor security certificate from Deloitte; committed by 15.06.2026."
+        }
+      ],
+      "trail": true
+    },
+    {
+      "id": "wl-09",
+      "title": "Implementation of automation (STP) for GL upload process within the stipulated timeline for secure, integrity-maintained data transfers.",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Clarification to be provided to ISG for non-feasibility · Not feasible — FAD justification mail"
+    },
+    {
+      "id": "wl-10",
+      "title": "Automation of FAD 50 reports in MPP",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-11",
+      "title": "BRS to be analyzed and discussed with Sharvari Kudale / Amit Rathee",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-12",
+      "title": "Taxation — New Application",
+      "tag": "oracle-gl",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "i-Smart to be raised afresh"
+    },
+    {
+      "id": "wl-13",
+      "title": "UAT server setup",
+      "tag": "finsync",
+      "assignee": "p-amit",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "UAT server setup done"
+    },
+    {
+      "id": "wl-14",
+      "title": "i-Smart raised",
+      "tag": "finsync",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-15",
+      "title": "API testing required for accessing NABARD server",
+      "tag": "finsync",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "DMZ UAT server · API documentation pending from NABARD"
+    },
+    {
+      "id": "wl-16",
+      "title": "Encryption approval pending",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-06-30",
+      "notes": "To be deployed by 30.06.2026",
+      "updates": [
+        {
+          "at": "2026-05-30T09:40:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Encryption change submitted; target deployment 30.06.2026."
+        },
+        {
+          "at": "2026-06-04T15:20:00.000Z",
+          "by": "Amit Dethe",
+          "text": "Awaiting RCA from Relyon before approval can be granted."
+        }
+      ],
+      "trail": true
+    },
+    {
+      "id": "wl-17",
+      "title": "Encryption RCA to be provided by Relyon",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-18",
+      "title": "SSL certificate to be provided by Intech",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-19",
+      "title": "Approval to be provided to Intech for patch update",
+      "tag": "gst-litigation",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Mail sent to Narayan sir 03.06.2026"
+    },
+    {
+      "id": "wl-20",
+      "title": "Interest Expenses",
+      "tag": "interest-ie",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "OFSAA integration issue at account level mapping · Batch run Infosys patch · Clarification to be provided by FCG · Meenakshi status update 17:10 03.06"
+    },
+    {
+      "id": "wl-21",
+      "title": "Interest Income",
+      "tag": "interest-ie",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": "Revert pending from Brijesh Sharma (FCG) · Delta query issue — data mismatch with TB"
+    },
+    {
+      "id": "wl-22",
+      "title": "Total 5 bills (3 Data Trade + 2 Darshan)",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Requirements"
+    },
+    {
+      "id": "wl-23",
+      "title": "Wall clock to CIO sir",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Provided · New request for latest one"
+    },
+    {
+      "id": "wl-24",
+      "title": "CARD printing — Vishal Galhotra sir",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-25",
+      "title": "Stationary delivery at Belapur office",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-26",
+      "title": "Speaker to be provided to Narayan sir",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-27",
+      "title": "Current bill to be checked for errors",
+      "tag": "stationary",
+      "assignee": "p-amit",
+      "status": "pending",
+      "priority": "medium",
+      "due": "",
+      "notes": ""
+    },
+    {
+      "id": "wl-28",
+      "title": "DM2026041811 — Data extraction and segmentation for modelling of PD and LGD under ECL Framework",
+      "tag": "pmps",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "2026-06-20",
+      "notes": "Expected extraction of data by 20.06.2026 · Ashwini Deshpande / Abhinay Deo Team"
+    },
+    {
+      "id": "wl-29",
+      "title": "DM2026021680 — Integration of Finacle-sourced customer account-level interest income & expenses with OFSAA system",
+      "tag": "pmps",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Challenges due to unavailable data at FCG level"
+    },
+    {
+      "id": "wl-30",
+      "title": "DM2026011551 — Automation and systematic tracking of data — Statutory Auditors",
+      "tag": "pmps",
+      "assignee": "p-amit",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "",
+      "notes": "Under development"
+    },
+    {
+      "id": "dum-01",
+      "title": "Oracle GL — month-end reconciliation review (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-narayan",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-05-28",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-02",
+      "title": "FINSYNC — NABARD API connectivity check (dummy)",
+      "tag": "finsync",
+      "assignee": "p-narayan",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "2026-06-06",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-03",
+      "title": "SARAL GST — vendor coordination call (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-narayan",
+      "status": "completed",
+      "priority": "low",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-04",
+      "title": "FINSYNC — UAT test case execution (dummy)",
+      "tag": "finsync",
+      "assignee": "p-surya",
+      "status": "in-progress",
+      "priority": "low",
+      "due": "2026-06-02",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-05",
+      "title": "ASP-GSP — encryption deployment follow-up (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-surya",
+      "status": "completed",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-06",
+      "title": "GST Litigation — document upload (dummy)",
+      "tag": "gst-litigation",
+      "assignee": "p-surya",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-07-01",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-07",
+      "title": "SARAL GST — GSTR-1 filing reconciliation (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-ankit",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-08",
+      "title": "GST Litigation — patch deployment sign-off (dummy)",
+      "tag": "gst-litigation",
+      "assignee": "p-ankit",
+      "status": "pending",
+      "priority": "low",
+      "due": "2026-06-20",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-09",
+      "title": "Interest — delta query review (dummy)",
+      "tag": "interest-ie",
+      "assignee": "p-ankit",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-10",
+      "title": "GST Litigation — case status update (dummy)",
+      "tag": "gst-litigation",
+      "assignee": "p-vivek",
+      "status": "pending",
+      "priority": "high",
+      "due": "2026-06-12",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-11",
+      "title": "Interest Income — TB vs system data match (dummy)",
+      "tag": "interest-ie",
+      "assignee": "p-vivek",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "2026-07-01",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-12",
+      "title": "Stationary — new indent processing (dummy)",
+      "tag": "stationary",
+      "assignee": "p-vivek",
+      "status": "completed",
+      "priority": "low",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-13",
+      "title": "Interest Expenses — OFSAA mapping check (dummy)",
+      "tag": "interest-ie",
+      "assignee": "p-anupam",
+      "status": "in-progress",
+      "priority": "low",
+      "due": "2026-06-20",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-14",
+      "title": "Stationary — delivery follow-up (dummy)",
+      "tag": "stationary",
+      "assignee": "p-anupam",
+      "status": "completed",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-15",
+      "title": "PMP — status tracker update (dummy)",
+      "tag": "pmps",
+      "assignee": "p-anupam",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-06-02",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-16",
+      "title": "Stationary — bill verification (dummy)",
+      "tag": "stationary",
+      "assignee": "p-govind",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-17",
+      "title": "PMP — model validation support (dummy)",
+      "tag": "pmps",
+      "assignee": "p-govind",
+      "status": "pending",
+      "priority": "low",
+      "due": "2026-05-28",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-18",
+      "title": "Misc — audit query response (dummy)",
+      "tag": "misc",
+      "assignee": "p-govind",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "2026-06-06",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-19",
+      "title": "PMP — data extraction coordination (dummy)",
+      "tag": "pmps",
+      "assignee": "p-manish",
+      "status": "pending",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-20",
+      "title": "Misc — meeting minutes circulation (dummy)",
+      "tag": "misc",
+      "assignee": "p-manish",
+      "status": "in-progress",
+      "priority": "medium",
+      "due": "2026-06-02",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-21",
+      "title": "Oracle GL — patch validation in UAT (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-manish",
+      "status": "completed",
+      "priority": "low",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-22",
+      "title": "Misc — weekly MIS report compilation (dummy)",
+      "tag": "misc",
+      "assignee": "p-shivesh",
+      "status": "in-progress",
+      "priority": "low",
+      "due": "2026-05-28",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-23",
+      "title": "Oracle GL — user access recertification (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-shivesh",
+      "status": "completed",
+      "priority": "high",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-24",
+      "title": "FINSYNC — DMZ server health review (dummy)",
+      "tag": "finsync",
+      "assignee": "p-shivesh",
+      "status": "pending",
+      "priority": "medium",
+      "due": "2026-06-20",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-25",
+      "title": "Oracle GL — month-end reconciliation review (dummy)",
+      "tag": "oracle-gl",
+      "assignee": "p-bhanu",
+      "status": "completed",
+      "priority": "medium",
+      "due": "",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-26",
+      "title": "FINSYNC — NABARD API connectivity check (dummy)",
+      "tag": "finsync",
+      "assignee": "p-bhanu",
+      "status": "pending",
+      "priority": "low",
+      "due": "2026-06-12",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    },
+    {
+      "id": "dum-27",
+      "title": "SARAL GST — vendor coordination call (dummy)",
+      "tag": "saral-asp-gsp",
+      "assignee": "p-bhanu",
+      "status": "in-progress",
+      "priority": "high",
+      "due": "2026-07-01",
+      "notes": "Dummy item — added to make the dashboard look fuller. Safe to delete."
+    }
+  ],
+  "links": [],
+  "vendors": [
+    {
+      "id": "v1",
+      "name": "Vendor Lead (sample)",
+      "org": "Deloitte",
+      "role": "GST Litigation Tool — Lead",
+      "email": "lead@deloitte.example",
+      "phone": "",
+      "area": "GST Litigation Tool",
+      "notes": "Primary support contact. Edit/replace me."
+    },
+    {
+      "id": "v2",
+      "name": "Support Desk (sample)",
+      "org": "TCS",
+      "role": "L1 Support",
+      "email": "support@vendor.example",
+      "phone": "1800-000-000",
+      "area": "Oracle GL",
+      "notes": ""
+    }
+  ],
+  "workspaces": {
+    "p-amit": {
+      "meta": {
+        "owner": "Amit Dethe",
+        "version": 5,
+        "role": "Manager, MIS",
+        "theme": "dark",
+        "accent": "#bf5af2",
+        "updated": "2026-06-02T16:47:56.328Z"
+      },
+      "projects": [
+        {
+          "id": "oracle-gl",
+          "name": "Oracle GL",
+          "icon": "🗄️",
+          "color": "#0a84ff"
+        },
+        {
+          "id": "finsync",
+          "name": "FINSYNC Application",
+          "icon": "🔄",
+          "color": "#64d2ff"
+        },
+        {
+          "id": "asp-gsp",
+          "name": "SARAL GST / ASP-GSP",
+          "icon": "🧾",
+          "color": "#30d158"
+        },
+        {
+          "id": "gst-lit",
+          "name": "GST Litigation Tool",
+          "icon": "⚖️",
+          "color": "#ff9f0a"
+        },
+        {
+          "id": "interest-ie",
+          "name": "Interest Income/Expenses",
+          "icon": "💹",
+          "color": "#5e5ce6"
+        },
+        {
+          "id": "stationary",
+          "name": "Stationary Bills",
+          "icon": "📦",
+          "color": "#ff375f"
+        },
+        {
+          "id": "pmps",
+          "name": "PMPs",
+          "icon": "📊",
+          "color": "#bf5af2"
+        },
+        {
+          "id": "misc",
+          "name": "Miscellaneous Work",
+          "icon": "🗂️",
+          "color": "#8e8e93"
+        }
+      ],
+      "reqTypes": [
+        {
+          "id": "work-item",
+          "name": "Work Item"
+        }
+      ],
+      "requests": [
+        {
+          "id": "wl-01",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Oracle DB access — Tower PCs",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-02",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "PIM ARCON access — to be followed up with Rathina",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-03",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Mail revert from Deloitte for certificate",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-04",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Establishment of full-fledged Disaster Recovery (DR) setup within the approved timeline, with periodic validation of backups in the interim.",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Request raised in ITOMS · Approval to be taken"
+        },
+        {
+          "id": "wl-05",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "SSL certificate clarification from Deloitte",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Reply pending from Deloitte"
+        },
+        {
+          "id": "wl-06",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Implementation of appropriate compensating controls to mitigate risks arising from unencrypted communication during the interim period. Strict monitoring through SIEM and access controls to ensure no unauthorized access or data compromise.",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Follow up from Deloitte"
+        },
+        {
+          "id": "wl-07",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Closure of all open VA/AppSec observations within prescribed timelines or fresh risk approval wherever required",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Closed till 31.03.2026 · New points to be closed"
+        },
+        {
+          "id": "wl-08",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Obtaining vendor security assurance/certificate confirming absence of vulnerabilities, malware, and covert channels.",
+          "raised": "2026-06-04",
+          "deadline": "2026-06-15",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "To be provided by Deloitte by 15.06.2026"
+        },
+        {
+          "id": "wl-09",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Implementation of automation (STP) for GL upload process within the stipulated timeline to ensure secure and integrity-maintained data transfers.",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Clarification to be provided to ISG for non-feasibility · Not feasible — FAD justification mail"
+        },
+        {
+          "id": "wl-10",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Automation of FAD 50 reports in MPP",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-11",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "BRS to be analyzed and discussed with Sharvari Kudale / Amit Rathee",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-12",
+          "project": "oracle-gl",
+          "type": "work-item",
+          "ref": "",
+          "title": "Taxation — New Application",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "raised",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "i-Smart to be raised afresh"
+        },
+        {
+          "id": "wl-13",
+          "project": "finsync",
+          "type": "work-item",
+          "ref": "",
+          "title": "UAT server setup",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "completed",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "UAT server setup done",
+          "completedOn": "2026-06-04"
+        },
+        {
+          "id": "wl-14",
+          "project": "finsync",
+          "type": "work-item",
+          "ref": "",
+          "title": "i-Smart raised",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-15",
+          "project": "finsync",
+          "type": "work-item",
+          "ref": "",
+          "title": "API testing required for accessing NABARD server",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "DMZ UAT server · API documentation pending from NABARD"
+        },
+        {
+          "id": "wl-16",
+          "project": "asp-gsp",
+          "type": "work-item",
+          "ref": "",
+          "title": "Encryption approval pending",
+          "raised": "2026-06-04",
+          "deadline": "2026-06-30",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "To be deployed by 30.06.2026"
+        },
+        {
+          "id": "wl-17",
+          "project": "asp-gsp",
+          "type": "work-item",
+          "ref": "",
+          "title": "Encryption RCA to be provided by Relyon",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-18",
+          "project": "asp-gsp",
+          "type": "work-item",
+          "ref": "",
+          "title": "SSL certificate to be provided by Intech",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-19",
+          "project": "gst-lit",
+          "type": "work-item",
+          "ref": "",
+          "title": "Approval to be provided to Intech for patch update",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Mail sent to Narayan sir 03.06.2026"
+        },
+        {
+          "id": "wl-20",
+          "project": "interest-ie",
+          "type": "work-item",
+          "ref": "",
+          "title": "Interest Expenses",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "OFSAA integration issue at account level mapping · Batch run Infosys patch · Clarification to be provided by FCG · Meenakshi status update 17:10 03.06"
+        },
+        {
+          "id": "wl-21",
+          "project": "interest-ie",
+          "type": "work-item",
+          "ref": "",
+          "title": "Interest Income",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Revert pending from Brijesh Sharma (FCG) · Delta query issue — data mismatch with TB"
+        },
+        {
+          "id": "wl-22",
+          "project": "stationary",
+          "type": "work-item",
+          "ref": "",
+          "title": "Total 5 bills (3 Data Trade + 2 Darshan)",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Requirements"
+        },
+        {
+          "id": "wl-23",
+          "project": "stationary",
+          "type": "work-item",
+          "ref": "",
+          "title": "Wall clock to CIO sir",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Provided · New request for latest one"
+        },
+        {
+          "id": "wl-24",
+          "project": "stationary",
+          "type": "work-item",
+          "ref": "",
+          "title": "CARD printing — Vishal Galhotra sir",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-25",
+          "project": "stationary",
+          "type": "work-item",
+          "ref": "",
+          "title": "Stationary delivery at Belapur office",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-26",
+          "project": "stationary",
+          "type": "work-item",
+          "ref": "",
+          "title": "Speaker to be provided to Narayan sir",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-27",
+          "project": "stationary",
+          "type": "work-item",
+          "ref": "",
+          "title": "Current bill to be checked for errors",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "pending",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": ""
+        },
+        {
+          "id": "wl-28",
+          "project": "pmps",
+          "type": "work-item",
+          "ref": "DM2026041811",
+          "title": "Data extraction and segmentation for modelling of PD and LGD under ECL Framework",
+          "raised": "2026-06-04",
+          "deadline": "2026-06-20",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Expected extraction of data by 20.06.2026 · Ashwini Deshpande / Abhinay Deo Team"
+        },
+        {
+          "id": "wl-29",
+          "project": "pmps",
+          "type": "work-item",
+          "ref": "DM2026021680",
+          "title": "Integration of Finacle sourced customer account level interest income and expenses with OFSAA system",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Challenges due to unavailable data at FCG level"
+        },
+        {
+          "id": "wl-30",
+          "project": "pmps",
+          "type": "work-item",
+          "ref": "DM2026011551",
+          "title": "Automation and systematic tracking of data — Statutory Auditors",
+          "raised": "2026-06-04",
+          "deadline": "",
+          "status": "in-progress",
+          "owner": "Amit Dethe",
+          "approver": "",
+          "notes": "Under development"
+        }
+      ],
+      "trackedProjects": [
+        {
+          "id": "tp1",
+          "name": "Oracle GL Upgrade (R12 → Cloud)",
+          "status": "UAT",
+          "uat": "2026-06-15",
+          "goLive": "2026-07-01",
+          "owner": "Amit Dethe",
+          "progress": 65,
+          "notes": "UAT cycle 2 in progress. (sample)"
+        },
+        {
+          "id": "tp2",
+          "name": "GST Litigation Tool v2",
+          "status": "Development",
+          "uat": "2026-07-20",
+          "goLive": "2026-08-10",
+          "owner": "Amit Dethe",
+          "progress": 40,
+          "notes": ""
+        },
+        {
+          "id": "tp3",
+          "name": "ASP-GSP Auto-Reconciliation",
+          "status": "Go-Live",
+          "uat": "2026-05-25",
+          "goLive": "2026-06-08",
+          "owner": "Amit Dethe",
+          "progress": 90,
+          "notes": "Go-live prep."
+        }
+      ],
+      "tasks": [
+        {
+          "id": "t1",
+          "title": "Follow up Firewall CRF-0142",
+          "project": "oracle-gl",
+          "priority": "high",
+          "due": "2026-06-04",
+          "done": false
+        },
+        {
+          "id": "t2",
+          "title": "Prepare UAT sign-off document",
+          "project": "gst-lit",
+          "priority": "medium",
+          "due": "2026-06-12",
+          "done": false
+        },
+        {
+          "id": "t3",
+          "title": "Monthly GST reconciliation",
+          "project": "asp-gsp",
+          "priority": "low",
+          "due": "2026-06-30",
+          "done": false
+        }
+      ],
+      "trackers": [
+        {
+          "id": "returns",
+          "name": "Regulatory Returns",
+          "icon": "📑",
+          "columns": [
+            {
+              "id": "name",
+              "label": "Return name",
+              "type": "text"
+            },
+            {
+              "id": "subcat",
+              "label": "Sub-category",
+              "type": "text"
+            },
+            {
+              "id": "due",
+              "label": "Due date",
+              "type": "date"
+            },
+            {
+              "id": "desc",
+              "label": "Description",
+              "type": "text"
+            },
+            {
+              "id": "status",
+              "label": "Current status",
+              "type": "select",
+              "options": [
+                "Pending",
+                "In Progress",
+                "Filed",
+                "Overdue"
+              ]
+            },
+            {
+              "id": "filed",
+              "label": "Return date",
+              "type": "date"
+            }
+          ],
+          "rows": [
+            {
+              "id": "rr1",
+              "values": {
+                "name": "GSTR-3B (May 2026)",
+                "subcat": "GST",
+                "due": "2026-06-20",
+                "desc": "Monthly summary return",
+                "status": "Pending",
+                "filed": ""
+              }
+            },
+            {
+              "id": "rr2",
+              "values": {
+                "name": "GSTR-1 (May 2026)",
+                "subcat": "GST",
+                "due": "2026-06-11",
+                "desc": "Outward supplies",
+                "status": "In Progress",
+                "filed": ""
+              }
+            }
+          ]
+        }
+      ],
+      "links": [],
+      "vendors": []
+    }
+  }
+}
