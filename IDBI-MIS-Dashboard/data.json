@@ -243,7 +243,8 @@
           "by": "Amit Dethe",
           "text": "Approval pending from IS-Security; follow-up mail sent. Interim backup validation continuing."
         }
-      ]
+      ],
+      "trail": true
     },
     {
       "id": "wl-05",
@@ -290,7 +291,8 @@
           "by": "Amit Dethe",
           "text": "Requested vendor security certificate from Deloitte; committed by 15.06.2026."
         }
-      ]
+      ],
+      "trail": true
     },
     {
       "id": "wl-09",
@@ -382,7 +384,8 @@
           "by": "Amit Dethe",
           "text": "Awaiting RCA from Relyon before approval can be granted."
         }
-      ]
+      ],
+      "trail": true
     },
     {
       "id": "wl-17",

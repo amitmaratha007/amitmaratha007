@@ -45,8 +45,8 @@
   const PROJ_STATUS = ["Requirement", "Development", "UAT", "Pre-Prod", "Go-Live", "Live", "On Hold", "Closed"];
   const PROJ_CLASS = { Requirement: "b-dev", Development: "b-dev", UAT: "b-uat", "Pre-Prod": "b-uat", "Go-Live": "b-pending", Live: "b-live", "On Hold": "b-hold", Closed: "b-completed" };
   const PALETTE = ["#0a84ff", "#30d158", "#ff9f0a", "#bf5af2", "#ff375f", "#64d2ff", "#ffd60a", "#5e5ce6", "#ff6482", "#40c8e0"];
-  const THEMES = ["dark", "light", "idbi-dark", "idbi-light", "genz"];
-  const THEME_ACCENT = { dark: "#0a84ff", light: "#0a84ff", "idbi-dark": "#12b766", "idbi-light": "#0ea15a", genz: "#ff4fa3" };
+  const THEMES = ["dark", "light", "idbi-dark", "idbi-light", "genz", "pink-dark"];
+  const THEME_ACCENT = { dark: "#0a84ff", light: "#0a84ff", "idbi-dark": "#16a34a", "idbi-light": "#138808", genz: "#ff4fa3", "pink-dark": "#ff4f9a" };
 
   /* ===================================================================
      WORKSPACE DATA (server source of truth + per-user local cache)
@@ -257,9 +257,15 @@
   function canEdit(personId) { const a = accessCfg(); if (!a.enabled || isSuper) return true; if (!currentUserId) return false; if (!personId) return true; const s = descendants(currentUserId); s.add(currentUserId); return s.has(personId); }
   const vPeople = () => { const s = viewScope(); return (TEAM.people || []).filter((p) => !s || s.has(p.id)); };
   const vItems = () => { const s = viewScope(); return (TEAM.workItems || []).filter((w) => !s || s.has(w.assignee)); };
+  // Hierarchy scoping for work: own items (My Workspace) and the logged-in person's whole sub-tree (Overview/KPIs).
+  function myTreeIds() { if (!currentUserId) return null; const s = descendants(currentUserId); s.add(currentUserId); return s; }
+  const myTreeItems = () => { const s = myTreeIds(); return (TEAM.workItems || []).filter((w) => !s || s.has(w.assignee)); };
+  const myOwnItems = () => (TEAM.workItems || []).filter((w) => !currentUserId || w.assignee === currentUserId);
+  const myReports = () => currentUserId ? (TEAM.people || []).filter((p) => p.reportsTo === currentUserId) : [];
   const workspaceOwnerId = () => currentUserId;
   const isGuest = () => accessCfg().enabled && !isSuper && !currentUserId;
-  function baseRootId() { const ppl = TEAM.people || []; if (viewScope() && currentUserId) return currentUserId; const r = ppl.find((p) => !p.reportsTo) || ppl[0]; return r ? r.id : null; }
+  // Org pie is rooted at the logged-in person, so each user sees their own reports to drill into.
+  function baseRootId() { const ppl = TEAM.people || []; if (currentUserId && person(currentUserId)) return currentUserId; const r = ppl.find((p) => !p.reportsTo) || ppl[0]; return r ? r.id : null; }
 
   /* ===================================================================
      UI STATE
@@ -335,7 +341,7 @@
      =================================================================== */
   function renderSidebarStats() {
     let a, b, c, al, bl, cl, team = UI.mode === "team" && TEAM;
-    if (team) { const items = vItems(); a = items.filter((w) => w.status !== "completed").length; al = "Open"; b = items.filter(wiOverdue).length; bl = "Overdue"; c = items.length; cl = "Items"; }
+    if (team) { const items = myTreeItems(); a = items.filter((w) => w.status !== "completed").length; al = "Open"; b = items.filter(wiOverdue).length; bl = "Overdue"; c = items.length; cl = "Items"; }
     else if (PD) { a = PD.requests.filter(reqOpen).length; al = "Open"; b = PD.requests.filter(reqOverdue).length; bl = "Overdue"; c = PD.tasks.filter((t) => !t.done).length; cl = "Tasks"; }
     else { a = 0; al = "Open"; b = 0; bl = "Overdue"; c = 0; cl = "Tasks"; }
     const clk = (k) => team ? `data-action="kpi" data-k="${k}"` : "";
@@ -428,7 +434,7 @@
      TEAM VIEWS
      =================================================================== */
   function viewTeamOverview() {
-    const items = vItems();
+    const items = myTreeItems();
     const open = items.filter((w) => w.status !== "completed"), over = items.filter(wiOverdue);
     const end = new Date(parseISO(todayISO())); end.setDate(end.getDate() + 7);
     const week = open.filter((w) => w.due && parseISO(w.due) >= parseISO(todayISO()) && parseISO(w.due) <= end);
@@ -444,7 +450,7 @@
     const ppl = TEAM.people || [], kids = (idx) => ppl.filter((p) => p.reportsTo === idx);
     const br = baseRootId();
     if (!UI.orgFocus || !person(UI.orgFocus)) UI.orgFocus = br;
-    const sc = viewScope(); if (sc) { const allowed = descendants(br); allowed.add(br); if (!allowed.has(UI.orgFocus)) UI.orgFocus = br; }
+    { const allowed = descendants(br); allowed.add(br); if (!allowed.has(UI.orgFocus)) UI.orgFocus = br; }   // keep the pie within the logged-in person's reporting tree
     const focus = person(UI.orgFocus);
     let pie = "";
     if (focus) {
@@ -499,7 +505,7 @@
     return `<div class="card glass pend-pies">${col("Pendency by topic", tagSlices, String(totalOpen), "open")}${col("By status", stSlices, String(items.length), "items")}</div>`;
   }
   function viewPendency() {
-    const items0 = vItems();
+    const items0 = myOwnItems();   // your tab shows only your own work items; reports are seen via the Overview pie
     const canTags = canManageTags();
     const editing = canTags && tagEditMode;
     const chips = `<button class="subpill ${UI.tTag === "all" ? "active" : ""}" data-action="ttag" data-v="all">All</button>` + (TEAM.workTags || []).map((t) => {
@@ -522,7 +528,9 @@
     const list = items.length ? `<div class="tbl">${head}${rows}</div>` : `<div class="empty glass"><div class="e-ico">🗂️</div><p>No items match your filters.</p></div>`;
     const dummyCount = (TEAM.workItems || []).filter(isDummyItem).length;
     const canClear = !viewAs && (isSuper || (teamEdit && canEdit()));
-    return `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canClear && dummyCount ? `<button class="btn btn-ghost btn-sm" data-action="clear-dummies" title="Remove all dummy items added to fill the dashboard">🧹 Clear dummy (${dummyCount})</button>` : ""}${canTags ? `<button class="btn btn-ghost btn-sm ${editing ? "" : "btn-ghost"}" data-action="toggle-tagedit" title="Show/hide the ✕ delete buttons on the topic tabs">${editing ? "✓ Done editing tabs" : "⚙ Edit tabs"}</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
+    const reps = myReports();
+    const repHint = reps.length ? `<div class="banner info" style="margin-bottom:12px">👥 This tab shows <b>your own</b> work. Your ${reps.length} report${reps.length === 1 ? "" : "s"} (${reps.map((p) => esc(p.name.split(" ")[0])).join(", ")}) appear as a pie in <b><span class="lk" data-action="tab" data-tab="overview" style="color:var(--accent);cursor:pointer;text-decoration:underline">Team Overview</span></b> — click a slice to drill into their items.</div>` : "";
+    return repHint + `<div class="section-head"><h2>My Workspace</h2><span class="faint">${items.length} of ${items0.length}</span><span class="spacer"></span><button class="btn btn-ghost btn-sm" data-action="export-wi">⬇ CSV</button>${canClear && dummyCount ? `<button class="btn btn-ghost btn-sm" data-action="clear-dummies" title="Remove all dummy items added to fill the dashboard">🧹 Clear dummy (${dummyCount})</button>` : ""}${canTags ? `<button class="btn btn-ghost btn-sm ${editing ? "" : "btn-ghost"}" data-action="toggle-tagedit" title="Show/hide the ✕ delete buttons on the topic tabs">${editing ? "✓ Done editing tabs" : "⚙ Edit tabs"}</button>` : ""}${canAddWorkItem() ? `<button class="btn" data-action="add-wi">${teamEdit ? "＋ Add item" : "＋ Add my item"}</button>` : ""}</div>
       ${pendencyPies(items0)}
       <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><div class="subnav" style="padding:0">${chips}</div></div>
       <div class="toolbar" style="display:flex;gap:8px;margin-bottom:14px"><select class="select" data-action="tstatus">${["all", "open", "pending", "in-progress", "completed", "overdue"].map((s) => `<option value="${s}" ${UI.tStatus === s ? "selected" : ""}>${s === "all" ? "All statuses" : (s === "open" ? "Open (all pending)" : (s === "overdue" ? "Overdue" : ST_LABEL[s]))}</option>`).join("")}</select><select class="select" data-action="tsort"><option value="due" ${UI.tSort === "due" ? "selected" : ""}>Sort: Due date</option><option value="priority" ${UI.tSort === "priority" ? "selected" : ""}>Sort: Priority</option></select></div>${list}`;
@@ -689,6 +697,7 @@
     const st = wiOverdue(w) ? "Overdue" : ST_LABEL[w.status];
     const canEd = canEditWorkItem(w);
     const row = (l, v) => `<div class="info-row"><span class="il">${l}</span><span>${v}</span></div>`;
+    const useTrail = w.trail || (w.updates && w.updates.length);
     const ups = sortedUpdates(w);
     let trail = "";
     if (ups.length || w.notes) {
@@ -704,7 +713,9 @@
       row("Status", `<span class="badge ${wiOverdue(w) ? "b-rejected" : ST_CLASS[w.status]}">${st}</span>`) +
       row("Priority", `<span class="prio ${w.priority || "low"}">${(w.priority || "low").toUpperCase()}</span>`) +
       row("Due", `${fmtDate(w.due)} <span class="cd ${cd.cls}">${cd.label}</span>`) +
-      `<div class="upd-section"><div class="il" style="margin:12px 0 8px">📝 Update trail <span class="faint small">(latest first)</span></div>${trail}${addBox}</div>`;
+      (useTrail
+        ? `<div class="upd-section"><div class="il" style="margin:12px 0 8px">📝 Update trail <span class="faint small">(latest first)</span></div>${trail}${addBox}</div>`
+        : (w.notes ? row("Notes", esc(w.notes)) : ""));
     openInfo("Work item", body, canEd ? () => { closeModal(); editWorkItem(id, !teamEdit); } : null);
   }
 
@@ -787,12 +798,12 @@
 
   /* ---- team modals ---- */
   function editWorkItem(id, ownOnly) {
-    const w = id ? TEAM.workItems.find((x) => x.id === id) : { id: "", title: "", tag: (TEAM.workTags[0] || {}).id, assignee: currentUserId || "", status: "pending", priority: "medium", due: "", notes: "" };
+    const w = id ? TEAM.workItems.find((x) => x.id === id) : { id: "", title: "", tag: (TEAM.workTags[0] || {}).id, assignee: currentUserId || "", status: "pending", priority: "medium", due: "", notes: "", trail: false };
     const tagOpts = TEAM.workTags.map((t) => `<option value="${t.id}" ${t.id === w.tag ? "selected" : ""}>${esc(t.name)}</option>`).join("");
     const assignable = ownOnly && currentUserId ? [person(currentUserId)].filter(Boolean) : vPeople(); // only people you can manage
     const aOpts = (ownOnly ? "" : `<option value="">Unassigned</option>`) + assignable.map((p) => `<option value="${p.id}" ${p.id === w.assignee ? "selected" : ""}>${esc(p.name)}</option>`).join("");
-    openModal(id ? "Edit work item" : "Add work item", `<div class="field"><label>Title</label><input id="f-title" value="${esc(w.title)}"></div><div class="row2"><div class="field"><label>Work tag</label><select id="f-tag">${tagOpts}</select></div><div class="field"><label>Assignee</label><select id="f-assignee">${aOpts}</select></div></div><div class="row2"><div class="field"><label>Status</label><select id="f-status">${STATUS.map((s) => `<option value="${s}" ${s === w.status ? "selected" : ""}>${ST_LABEL[s]}</option>`).join("")}</select></div><div class="field"><label>Priority</label><select id="f-prio">${["high", "medium", "low"].map((s) => `<option value="${s}" ${s === w.priority ? "selected" : ""}>${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div></div><div class="field"><label>Due date</label><input id="f-due" type="date" value="${esc(w.due || "")}"></div><div class="field"><label>Notes</label><textarea id="f-notes">${esc(w.notes || "")}</textarea></div>`,
-      () => { const title = $("#f-title").value.trim(); if (!title) { toast("Title required", "err"); return false; } const o = { id: w.id || uid("w"), title, tag: $("#f-tag").value, assignee: ownOnly ? currentUserId : $("#f-assignee").value, status: $("#f-status").value, priority: $("#f-prio").value, due: $("#f-due").value, notes: $("#f-notes").value.trim() }; if (id) TEAM.workItems[TEAM.workItems.findIndex((x) => x.id === id)] = o; else TEAM.workItems.push(o); render(); saveTeam(); return true; });
+    openModal(id ? "Edit work item" : "Add work item", `<div class="field"><label>Title</label><input id="f-title" value="${esc(w.title)}"></div><div class="row2"><div class="field"><label>Work tag</label><select id="f-tag">${tagOpts}</select></div><div class="field"><label>Assignee</label><select id="f-assignee">${aOpts}</select></div></div><div class="row2"><div class="field"><label>Status</label><select id="f-status">${STATUS.map((s) => `<option value="${s}" ${s === w.status ? "selected" : ""}>${ST_LABEL[s]}</option>`).join("")}</select></div><div class="field"><label>Priority</label><select id="f-prio">${["high", "medium", "low"].map((s) => `<option value="${s}" ${s === w.priority ? "selected" : ""}>${s[0].toUpperCase() + s.slice(1)}</option>`).join("")}</select></div></div><div class="field"><label>Due date</label><input id="f-due" type="date" value="${esc(w.due || "")}"></div><div class="field"><label>${(w.trail || (w.updates && w.updates.length)) ? "Notes / initial entry" : "Notes"}</label><textarea id="f-notes">${esc(w.notes || "")}</textarea></div><div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f-trail" ${(w.trail || (w.updates && w.updates.length)) ? "checked" : ""} style="width:16px;height:16px"> 📝 Keep an <b>update trail</b> (timestamped status history) for this multi-step item</label></div>`,
+      () => { const title = $("#f-title").value.trim(); if (!title) { toast("Title required", "err"); return false; } const o = { id: w.id || uid("w"), title, tag: $("#f-tag").value, assignee: ownOnly ? currentUserId : $("#f-assignee").value, status: $("#f-status").value, priority: $("#f-prio").value, due: $("#f-due").value, notes: $("#f-notes").value.trim(), trail: $("#f-trail").checked }; if (w.updates && w.updates.length) o.updates = w.updates; if (id) TEAM.workItems[TEAM.workItems.findIndex((x) => x.id === id)] = o; else TEAM.workItems.push(o); render(); saveTeam(); return true; });
   }
   function wtRowHtml(name, color) {
     const c = /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : PALETTE[0];
@@ -982,11 +993,11 @@
 
   /* ===== start-of-day role chooser (admin / host PC only) ===== */
   function applyStartRole(role) {
-    if (role === "super") { isSuper = true; realSuper = true; currentUserId = (accessCfg().ipMap || {})[MY_IP] || null; realUserId = currentUserId; }
-    else if (person(role)) { isSuper = true; realSuper = true; currentUserId = role; realUserId = role; }   // host stays Superadmin-capable, but works as the chosen person
+    if (role === "super") { isSuper = true; realSuper = true; currentUserId = null; realUserId = null; }            // pure admin: sees the whole team
+    else if (person(role)) { isSuper = true; realSuper = true; currentUserId = role; realUserId = role; }            // host stays Superadmin-capable, but works as the chosen person (own items + their reports)
     else return;
     viewAs = null; sessionStorage.removeItem(VIEWAS_KEY); sessionStorage.setItem(START_ROLE_KEY, role);
-    teamEdit = false; UI.mode = "team"; UI.teamTab = "pendency"; saveUI();
+    teamEdit = false; UI.mode = "team"; UI.teamTab = "pendency"; UI.orgFocus = currentUserId; saveUI();
     syncWorkspace(); render();
   }
   function showStartChooser() {
@@ -1097,6 +1108,7 @@
     const startRole = host ? sessionStorage.getItem(START_ROLE_KEY) : null;
     if (host) {
       if (startRole && startRole !== "super" && person(startRole)) { isSuper = true; currentUserId = startRole; }   // chosen earlier this session
+      else if (startRole === "super") { isSuper = true; currentUserId = null; }
       else isSuper = true;   // the PC running the .bat = host superadmin (default until they choose)
     }
     realUserId = currentUserId; realSuper = isSuper;
